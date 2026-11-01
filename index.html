@@ -12,9 +12,13 @@
     <div class="actions">
       <button id="toggle" type="button" aria-pressed="true">파레트 그리기 종료</button>
       <button id="start-map" type="button" hidden>시작맵 만들기</button>
+      <button id="number-packs" type="button" hidden>팩 번호 매기기</button>
+      <button id="destination-map" type="button" hidden>도착맵 만들기</button>
+      <button id="view-start" type="button" hidden>시작맵 보기</button>
     </div>
   </header>
   <main>
+    <p id="feedback" role="status" aria-live="polite"></p>
     <section id="pack-panel" hidden aria-label="시작맵 팩 선택">
       <h2>시작맵 만들기</h2>
       <p>팩을 고른 뒤 파레트 칸을 클릭하세요. 같은 팩을 다시 놓으면 지워지고, 다른 팩을 놓으면 교체됩니다.</p>
@@ -26,6 +30,16 @@
       <div id="board" class="board" role="group" aria-label="파레트 격자"></div>
     </div>
   </main>
+  <dialog id="number-dialog" aria-labelledby="number-title">
+    <form id="number-form" novalidate>
+      <h2 id="number-title">팩 번호</h2>
+      <label for="pack-number">팩 번호 (0–999999)</label>
+      <input id="pack-number" type="text" inputmode="numeric" maxlength="6" autocomplete="off">
+      <p id="number-error" role="alert"></p>
+      <div id="keypad" aria-label="숫자 번호판"></div>
+      <div class="actions"><button id="cancel-number" type="button">취소</button><button type="submit">번호 저장</button></div>
+    </form>
+  </dialog>
   <script type="module" src="app.js"></script>
 </body>
 </html>
