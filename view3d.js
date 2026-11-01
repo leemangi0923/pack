@@ -39,11 +39,16 @@ export function create3DView(container) {
       Math.atan(Math.tan(THREE.MathUtils.degToRad(camera.fov) / 2) * camera.aspect));
     const distance = radius / Math.sin(angle) * 1.15;
     controls.target.copy(center);
-    camera.position.copy(center).add(new THREE.Vector3(1, 1.15, 1.3).normalize().multiplyScalar(distance));
+    camera.position.copy(center).add(new THREE.Vector3(0, distance, 0));
     camera.near = Math.max(0.01, distance / 1000);
     camera.far = Math.max(2000, distance * 10);
     camera.updateProjectionMatrix();
     controls.update();
+    // OrbitControls avoids the pole internally; use an exact overhead pose for reset.
+    camera.position.copy(center).add(new THREE.Vector3(0, distance, 0));
+    camera.up.set(0, 0, -1);
+    camera.lookAt(center);
+    camera.up.set(0, 1, 0);
     draw();
   }
   function resize() {
@@ -54,12 +59,14 @@ export function create3DView(container) {
     reset();
   }
   new ResizeObserver(resize).observe(container);
-  function label(text, color) {
+  function label(text, color, transparent = false) {
     const canvas = document.createElement('canvas');
     canvas.width = 256; canvas.height = 128;
     const context = canvas.getContext('2d');
-    context.fillStyle = 'rgba(255,255,255,.94)';
-    context.fillRect(0, 0, 256, 128);
+    if (!transparent) {
+      context.fillStyle = 'rgba(255,255,255,.94)';
+      context.fillRect(0, 0, 256, 128);
+    }
     context.fillStyle = color;
     context.font = 'bold 64px system-ui';
     context.textAlign = 'center'; context.textBaseline = 'middle';
@@ -104,21 +111,23 @@ export function create3DView(container) {
         }));
         mesh.position.set(item.x, pack.height / 2, item.z);
         group.add(mesh);
-        const sprite = new THREE.Sprite(new THREE.SpriteMaterial({
-          map: label(pack.number ?? pack.size, pack.shape === 'square' ? '#b91c1c' : '#1d4ed8'),
-          depthTest: true,
-        }));
-        sprite.scale.set(1.5, 0.75, 1);
-        sprite.position.set(item.x, pack.height + 0.5, item.z);
-        group.add(sprite);
-        movingPacks.set(item.key, { mesh, sprite });
-      } else {
-        const number = new THREE.Mesh(new THREE.PlaneGeometry(1.3, 0.65),
-          new THREE.MeshBasicMaterial({ map: label(item.cellNumber, '#475569') }));
-        number.rotation.x = -Math.PI / 2;
-        number.position.set(item.x, 0.01, item.z);
-        group.add(number);
+        const inscription = new THREE.Mesh(new THREE.PlaneGeometry(1.65, 0.82),
+          new THREE.MeshBasicMaterial({
+            map: label(pack.number ?? pack.size, '#ffffff', true),
+            transparent: true, depthWrite: false, polygonOffset: true,
+            polygonOffsetFactor: -1, polygonOffsetUnits: -1,
+          }));
+        inscription.rotation.x = -Math.PI / 2;
+        inscription.position.set(item.x, pack.height + 0.005, item.z);
+        group.add(inscription);
+        movingPacks.set(item.key, { mesh, inscription });
       }
+      // Keep floor numbers under occupied packs so moving away reveals the source.
+      const number = new THREE.Mesh(new THREE.PlaneGeometry(1.3, 0.65),
+        new THREE.MeshBasicMaterial({ map: label(item.cellNumber, '#475569') }));
+      number.rotation.x = -Math.PI / 2;
+      number.position.set(item.x, 0.01, item.z);
+      group.add(number);
     }
     const bounds = new THREE.Box3().setFromObject(group);
     if (!bounds.isEmpty()) {
@@ -157,7 +166,7 @@ export function create3DView(container) {
     const moving = movingPacks.get(from);
     const start = positions.get(from), end = positions.get(to);
     if (!moving || !start || !end) return;
-    for (const object of [moving.mesh, moving.sprite]) {
+    for (const object of [moving.mesh, moving.inscription]) {
       object.position.x = THREE.MathUtils.lerp(start.x, end.x, progress);
       object.position.z = THREE.MathUtils.lerp(start.z, end.z, progress);
     }

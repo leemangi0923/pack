@@ -50,6 +50,7 @@ const routePlayer = createRoutePlayer({
     const [fx, fy] = step.from.split(',').map(Number);
     const [tx, ty] = step.to.split(',').map(Number);
     const marker = board.querySelector(`[data-x="${fx}"][data-y="${fy}"] .pack-marker`);
+    marker?.parentElement.classList.toggle('moving-from', step.from !== step.to && progress > 0);
     const cellSize = parseFloat(board.style.getPropertyValue('--cell-size'));
     if (marker) {
       marker.style.transform = `translate(${(tx - fx) * cellSize * progress}px, ${(ty - fy) * cellSize * progress}px)`;
@@ -224,6 +225,7 @@ function render() {
     const pack = map.get(key);
     cell.classList.toggle('selected', active);
     cell.classList.toggle('occupied', Boolean(pack));
+    cell.classList.remove('moving-from');
     cell.classList.toggle('numbering-current', !dialog.hidden && key === editingKey);
     cell.textContent = '';
     if (active) {

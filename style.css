@@ -46,12 +46,13 @@ main:has(#pack-panel[hidden]) .details, main:has(#pack-panel[hidden]) .viewport 
 button:focus-visible, input:focus-visible { outline: 3px solid #407ee7; outline-offset: -3px; }
 .board.finished .cell { border-color: transparent; cursor: default; }
 .board.finished .cell:not(.selected) { visibility: hidden; }
-.pack-marker { position: absolute; left: 25%; top: 25%; width: 50%; height: 50%; display: grid; place-items: center; background: #dbeafe; border: 2px solid #2563eb; color: #1d4ed8; }
+.pack-marker { position: absolute; left: 25%; top: 25%; width: 50%; height: 50%; display: grid; place-items: center; background: #2563eb; border: 2px solid #2563eb; color: white; }
 .pack-marker.circle { border-radius: 50%; }
-.pack-marker.square { background: #fee2e2; border-color: #dc2626; color: #b91c1c; }
+.pack-marker.square { background: #dc2626; border-color: #dc2626; color: white; }
 .pack-marker small { position: absolute; right: 1px; bottom: 0; font-size: calc(var(--cell-size) * .14); }
 .pack-marker > span { max-width: 100%; overflow-wrap: anywhere; font-size: calc(var(--cell-size) * .21); }
 .occupied .cell-number { position: absolute; left: 3px; top: 1px; font-size: calc(var(--cell-size) * .17); z-index: 2; }
+.occupied.moving-from .cell-number { position: static; font-size: calc(var(--cell-size) * .4); }
 .board.finished .cell:enabled { cursor: pointer; }
 #pack-number { display: block; width: 100%; margin: 10px 0; padding: 8px; font: 24px system-ui; }
 #number-error { color: #b91c1c; font-size: 13px; }
