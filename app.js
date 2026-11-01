@@ -271,7 +271,7 @@ function render() {
   const instructions = {
     drawing: '칸을 클릭해 그리거나 지울 수 있습니다. 빈칸도 번호에 포함됩니다.',
     start: '팩을 골라 배치하세요. 배치를 마치면 팩 번호를 매길 수 있습니다.',
-    numbering: '팩을 클릭해 번호를 입력하세요. 모든 팩에 서로 다른 번호를 지정한 뒤 완료하세요.',
+    numbering: '팩을 클릭해 번호를 입력하세요. 같은 번호나 도형을 여러 팩에 사용할 수 있습니다.',
     destination: '시작맵의 팩을 옮겨 배치하세요. 종류·크기별 남은 수량만 사용할 수 있고 번호는 그대로 유지됩니다.',
     'destination-numbering': '팩을 클릭해 같은 종류·크기의 시작맵 번호를 지정하세요. 이미 배치된 번호를 선택하면 두 팩의 번호가 교환됩니다.',
     idle: '시작맵 배치 → 팩 번호 매기기 → 도착맵 만들기 순서로 진행하세요.',
@@ -411,7 +411,8 @@ document.querySelector('#number-form').addEventListener('submit', event => {
   try { number = parsePackLabel(input.value); }
   catch (error) { numberError.textContent = error.message; return; }
   if (mode === 'destination-numbering') {
-    const target = [...placements.values()].find(pack => pack.id === editingPack.id && pack.number === number);
+    const target = editingPack.number === number ? editingPack
+      : [...placements.values()].find(pack => pack.id === editingPack.id && pack.number === number);
     if (!target) {
       numberError.textContent = '시작맵에서 같은 종류·크기의 팩에 지정한 번호를 입력해 주세요.';
       return;
@@ -420,9 +421,6 @@ document.querySelector('#number-form').addEventListener('submit', event => {
     if (other) destination.set(other[0], editingPack);
     destination.set(editingKey, target);
     advanceNumberPanel(); return;
-  }
-  if ([...placements.values()].some(pack => pack !== editingPack && pack.number === number)) {
-    numberError.textContent = '이미 사용 중인 번호입니다. 다른 번호를 입력해 주세요.'; return;
   }
   editingPack.number = number;
   advanceNumberPanel();
