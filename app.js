@@ -38,7 +38,7 @@ function render() {
   toggle.setAttribute('aria-pressed', String(drawing));
   status.textContent = `${drawing ? '그리는 중' : '그리기 완료'} · 선택한 칸 ${selected.size}개`;
   instruction.textContent = drawing
-    ? '칸을 클릭해 파레트를 그려 보세요. 빈칸도 번호에 포함됩니다.'
+    ? '칸을 클릭해 그리거나 지울 수 있습니다. 빈칸도 번호에 포함됩니다.'
     : '파레트가 완성되었습니다. 다시 그리기를 누르면 이어서 그릴 수 있습니다.';
 }
 
@@ -47,7 +47,9 @@ board.addEventListener('click', event => {
   if (!drawing || !cell) return;
   const x = Number(cell.dataset.x);
   const y = Number(cell.dataset.y);
-  selected.set(`${x},${y}`, { x, y });
+  const key = `${x},${y}`;
+  if (selected.has(key)) selected.delete(key);
+  else selected.set(key, { x, y });
   render();
 });
 toggle.addEventListener('click', () => {

@@ -13,9 +13,9 @@ main { padding: 20px 28px 28px; }
 .board { display: grid; grid-template-columns: repeat(40, 60px); width: 2400px; height: 2400px; align-content: start; }
 .cell { width: 60px; height: 60px; border: 0; border-right: 2px solid #d2d2d2; border-bottom: 2px solid #d2d2d2; border-radius: 0; padding: 0; background: white; font: 400 30px/1 system-ui, sans-serif; color: #ed222b; cursor: crosshair; }
 .cell:hover { background: #f0f0f0; }
-.cell.selected { border: 3px solid #111; background: white; }
+.cell.selected { position: relative; border: 0; background: white; }
+.cell.selected::after { content: ''; position: absolute; inset: -1.5px; border: 3px solid #111; pointer-events: none; z-index: 1; }
 .cell:focus-visible, #toggle:focus-visible, .viewport:focus-visible { outline: 3px solid #407ee7; outline-offset: -4px; }
 .board.finished .cell { border-color: transparent; cursor: default; }
 .board.finished .cell:not(.selected) { visibility: hidden; }
-.board.finished .cell.selected { border-color: #111; }
 @media (max-width: 640px) { header { padding: 18px 16px; align-items: flex-start; flex-direction: column; gap: 14px; } main { padding: 16px; } h1 { font-size: 21px; } .viewport { height: calc(100dvh - 250px); } }
