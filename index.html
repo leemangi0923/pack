@@ -3,23 +3,35 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>파레트 그리기</title>
+  <title>파레트 스튜디오</title>
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <header>
-    <div><h1>파레트 그리기 <span class="version" aria-label="현재 버전 1.0.3">v1.0.3</span> <span id="save-status" role="status" aria-live="polite">자동 저장 준비 중</span></h1><p id="instruction">칸을 클릭해 그리거나 지울 수 있습니다. 빈칸도 번호에 포함됩니다.</p></div>
-    <div class="actions">
+  <header class="app-header">
+    <div class="brand"><span class="brand-mark" aria-hidden="true">▦</span><div><h1>파레트 스튜디오 <span class="version" aria-label="현재 버전 1.1.0">v1.1.0</span></h1><span class="brand-caption">파레트 설계 · 배치 · 이동 시뮬레이션</span></div></div>
+    <span id="save-status" role="status" aria-live="polite" title="현재 브라우저에 자동 저장됩니다.">자동 저장 준비 중</span>
+  </header>
+  <nav id="workflow" aria-label="작업 단계">
+    <button type="button" data-step="0"><span class="step-index">1</span><span>파레트<span class="step-description">작업 공간 그리기</span></span></button>
+    <button type="button" data-step="1"><span class="step-index">2</span><span>시작맵<span class="step-description">팩 선택과 배치</span></span></button>
+    <button type="button" data-step="2"><span class="step-index">3</span><span>팩 번호<span class="step-description">숫자와 도형 지정</span></span></button>
+    <button type="button" data-step="3"><span class="step-index">4</span><span>도착맵<span class="step-description">목표 위치 설정</span></span></button>
+    <button type="button" data-step="4"><span class="step-index">5</span><span>경로<span class="step-description">이동 경로 재생</span></span></button>
+  </nav>
+  <div class="toolbar" aria-label="편집 도구">
+    <div class="actions editor-actions">
       <button id="toggle" type="button" aria-pressed="true">파레트 그리기 종료</button>
       <button id="start-map" type="button" hidden>시작맵 만들기</button>
       <button id="number-packs" type="button" hidden>팩 번호 매기기</button>
       <button id="destination-map" type="button" hidden>도착맵 만들기</button>
       <button id="destination-numbers" type="button" hidden>도착맵 팩 번호 매기기</button>
+    </div>
+    <div class="actions view-actions">
       <button id="view-start" type="button" hidden>시작맵 보기</button>
       <button id="view-3d" type="button" hidden aria-pressed="false">3D로 보기</button>
       <button id="add-route" type="button" hidden>경로 추가하기</button>
     </div>
-  </header>
+  </div>
   <main>
     <p id="feedback" role="status" aria-live="polite"></p>
     <section id="route-panel" hidden aria-label="경로 입력과 재생">
@@ -41,7 +53,7 @@
       <div id="pack-options" class="pack-options" role="group" aria-label="팩 종류"></div>
       <p class="pack-note">파레트 한 칸은 4×4cm, 팩의 폭·지름은 2cm입니다. 옆모습은 높이 4·5·6cm를 같은 축척으로 표시합니다. 한 칸에 팩 하나를 배치합니다.</p>
     </section>
-    <div class="details"><span id="status" role="status">그리는 중 · 선택한 칸 0개</span><span>왼쪽 위부터 가로 순서로 번호가 매겨집니다.</span></div>
+    <div class="details"><div><span class="workspace-label">WORKSPACE</span><span id="status" role="status">그리는 중 · 선택한 칸 0개</span></div><span class="scale-legend">한 칸 4×4cm <span>·</span> 팩 2cm</span></div>
     <div class="viewport" aria-label="화면에 자동으로 맞춰지는 파레트 작업 공간">
       <div id="board" class="board" role="group" aria-label="파레트 격자"></div>
       <section id="three-view" hidden aria-label="3D 파레트 보기">
@@ -53,6 +65,7 @@
         <p class="three-help">드래그: 회전 · 휠/두 손가락: 확대 · 방향키: 회전</p>
       </section>
     </div>
+    <div class="workspace-footer"><p id="instruction">칸을 클릭해 그리거나 지울 수 있습니다. 빈칸도 번호에 포함됩니다.</p><span class="color-legend"><i class="red-dot"></i>사각팩 <i class="blue-dot"></i>원형팩</span></div>
   <aside id="number-dialog" hidden aria-labelledby="number-title">
     <form id="number-form" novalidate>
       <h2 id="number-title">팩 번호</h2>

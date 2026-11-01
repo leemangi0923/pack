@@ -326,6 +326,24 @@ function render() {
   destinationNumbers.textContent = mode === 'destination-numbering' ? '도착맵 팩 번호 매기기 완료' : '도착맵 팩 번호 매기기';
   viewStart.hidden = !showingDestination;
   packPanel.hidden = !mapping;
+  const currentStep = routeOpen ? 4 : (showingDestination || mode === 'destination' || mode === 'destination-numbering') ? 3
+    : mode === 'numbering' ? 2 : mode === 'start' ? 1 : mode === 'drawing' ? 0
+    : numberingComplete ? 2 : placementComplete ? 1 : 0;
+  const availableSteps = [true, selected.size > 0 && mode !== 'drawing', placementComplete, numberingComplete, placementComplete];
+  for (const button of document.querySelectorAll('#workflow button')) {
+    const step = Number(button.dataset.step);
+    button.disabled = !availableSteps[step] && step !== currentStep;
+    button.classList.toggle('active', step === currentStep);
+    button.classList.toggle('complete', step < currentStep);
+    if (step === currentStep) button.setAttribute('aria-current', 'step');
+    else button.removeAttribute('aria-current');
+  }
+  const activeAction = mode === 'drawing' ? toggle : mode === 'start' ? startMap
+    : mode === 'numbering' ? numberPacks : mode === 'destination' ? destinationButton
+    : mode === 'destination-numbering' ? destinationNumbers
+    : showingDestination ? destinationNumbers : numberingComplete ? destinationButton : placementComplete ? numberPacks : startMap;
+  for (const button of document.querySelectorAll('.editor-actions > button')) button.classList.toggle('primary-action', button === activeAction);
+  document.querySelector('main').dataset.tool = mapping ? 'packs' : !dialog.hidden ? 'numbers' : routeOpen ? 'routes' : 'none';
   document.querySelector('#pack-panel h2').textContent = showingDestination ? '도착맵 만들기' : '시작맵 만들기';
   for (const option of packOptions.children) {
     option.setAttribute('aria-pressed', String(option.dataset.pack === chosenPack.id));
@@ -502,6 +520,16 @@ routeInput.addEventListener('input', scheduleSave);
 input.addEventListener('input', scheduleSave);
 document.querySelector('#keypad').addEventListener('click', scheduleSave);
 document.querySelector('#symbol-keypad').addEventListener('click', scheduleSave);
+document.querySelector('#workflow').addEventListener('click', event => {
+  const button = event.target.closest('button[data-step]');
+  if (!button || button.disabled) return;
+  const step = Number(button.dataset.step);
+  if (step === 0 && mode !== 'drawing') toggle.click();
+  if (step === 1 && mode !== 'start') startMap.click();
+  if (step === 2 && mode !== 'numbering') numberPacks.click();
+  if (step === 3 && mode !== 'destination' && mode !== 'destination-numbering') destinationButton.click();
+  if (step === 4 && !routeOpen) addRoute.click();
+});
 window.addEventListener('pagehide', saveWorkspace);
 document.addEventListener('visibilitychange', () => { if (document.hidden) saveWorkspace(); });
 new ResizeObserver(fitBoard).observe(document.querySelector('.viewport'));
