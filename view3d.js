@@ -26,6 +26,9 @@ export function create3DView(container) {
   const center = new THREE.Vector3();
   let visible = false;
   let contextLost = false;
+  const movingPacks = new Map();
+  let positions = new Map();
+  let initialized = false;
 
   function draw() {
     if (visible && !contextLost) renderer.render(scene, camera);
@@ -77,10 +80,13 @@ export function create3DView(container) {
     resources.forEach(resource => resource.dispose());
     group.clear();
   }
-  function setData(cells, placements) {
+  function setData(cells, placements, { preserveView = false } = {}) {
     clear();
-    for (const item of sceneModel(cells, placements)) {
-      const base = new THREE.Mesh(new THREE.BoxGeometry(2, 0.18, 2),
+    movingPacks.clear();
+    const model = sceneModel(cells, placements);
+    positions = new Map(model.map(item => [item.key, item]));
+    for (const item of model) {
+      const base = new THREE.Mesh(new THREE.BoxGeometry(4, 0.18, 4),
         new THREE.MeshStandardMaterial({ color: 0xe2e8f0, roughness: 0.9 }));
       base.position.set(item.x, -0.09, item.z);
       group.add(base);
@@ -105,6 +111,7 @@ export function create3DView(container) {
         sprite.scale.set(1.5, 0.75, 1);
         sprite.position.set(item.x, pack.height + 0.5, item.z);
         group.add(sprite);
+        movingPacks.set(item.key, { mesh, sprite });
       } else {
         const number = new THREE.Mesh(new THREE.PlaneGeometry(1.3, 0.65),
           new THREE.MeshBasicMaterial({ map: label(item.cellNumber, '#475569') }));
@@ -119,7 +126,9 @@ export function create3DView(container) {
       center.copy(sphere.center);
       radius = Math.max(2, sphere.radius);
     }
-    resize();
+    if (preserveView && initialized) draw();
+    else resize();
+    initialized = true;
   }
   function zoom(factor) {
     const offset = camera.position.clone().sub(controls.target).multiplyScalar(factor);
@@ -144,5 +153,15 @@ export function create3DView(container) {
     container.querySelector('.three-help').textContent = '3D 그래픽 연결이 끊겼습니다. 2D로 돌아가거나 화면을 새로고침해 주세요.';
   });
   renderer.domElement.addEventListener('webglcontextrestored', () => { contextLost = false; draw(); });
-  return { setData, reset, zoom, setVisible(value) { visible = value; if (value) resize(); } };
+  function movePack(from, to, progress) {
+    const moving = movingPacks.get(from);
+    const start = positions.get(from), end = positions.get(to);
+    if (!moving || !start || !end) return;
+    for (const object of [moving.mesh, moving.sprite]) {
+      object.position.x = THREE.MathUtils.lerp(start.x, end.x, progress);
+      object.position.z = THREE.MathUtils.lerp(start.z, end.z, progress);
+    }
+    draw();
+  }
+  return { setData, reset, zoom, movePack, setVisible(value) { if (visible === value) return; visible = value; if (value) resize(); } };
 }

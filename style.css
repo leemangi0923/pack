@@ -45,7 +45,7 @@ main:has(#pack-panel[hidden]) .details, main:has(#pack-panel[hidden]) .viewport 
 button:focus-visible, input:focus-visible { outline: 3px solid #407ee7; outline-offset: -3px; }
 .board.finished .cell { border-color: transparent; cursor: default; }
 .board.finished .cell:not(.selected) { visibility: hidden; }
-.pack-marker { position: absolute; left: 16.6667%; top: 16.6667%; width: 66.6667%; height: 66.6667%; display: grid; place-items: center; background: #dbeafe; border: 2px solid #2563eb; color: #1d4ed8; }
+.pack-marker { position: absolute; left: 25%; top: 25%; width: 50%; height: 50%; display: grid; place-items: center; background: #dbeafe; border: 2px solid #2563eb; color: #1d4ed8; }
 .pack-marker.circle { border-radius: 50%; }
 .pack-marker.square { background: #fee2e2; border-color: #dc2626; color: #b91c1c; }
 .pack-marker small { position: absolute; right: 1px; bottom: 0; font-size: calc(var(--cell-size) * .14); }
@@ -111,6 +111,34 @@ main:has(#number-dialog:not([hidden])) .viewport { grid-column: 1; }
   #number-dialog #number-error { font-size: 10px; line-height: 1.2; }
   #number-dialog #pack-number { margin: 4px 0; padding: 3px 6px; font-size: 18px; }
   #number-dialog #keypad { gap: 3px; margin: 5px 0; }
-  #number-dialog #keypad button { padding: 4px; font-size: 11px; }
+  #number-dialog #keypad button { padding: 2px; font-size: 10px; }
   #number-dialog .actions button { padding: 5px; font-size: 10px; }
+}
+#symbol-keypad { display: grid; grid-template-columns: repeat(4, 1fr); gap: 5px; margin: 6px 0; }
+#symbol-keypad button { min-width: 0; padding: 5px 0; font-size: 22px; line-height: 1.1; border: 1px solid #b7c8ed; border-radius: 5px; background: white; cursor: pointer; }
+#route-panel { grid-column: 2; grid-row: 2 / 4; min-width: 0; background: white; padding: 12px; border: 1px solid #dde3ed; border-radius: 10px; align-self: start; }
+main:has(#route-panel:not([hidden])) { grid-template-columns: minmax(0, 1fr) 280px; }
+main:has(#route-panel:not([hidden])) .details, main:has(#route-panel:not([hidden])) .viewport { grid-column: 1; }
+#route-panel p, #route-panel label { font-size: 11px; }
+#route-input { width: 100%; resize: vertical; max-height: 130px; min-height: 60px; margin: 8px 0; padding: 8px; border: 1px solid #cbd5e1; border-radius: 6px; font: 12px/1.5 monospace; }
+#route-panel .actions { margin-bottom: 10px; }
+#route-panel .actions button { padding: 8px; font-size: 11px; }
+button:disabled { cursor: default; opacity: .6; }
+.cell:disabled { opacity: 1; }
+@media (max-width: 720px) {
+  main:has(#route-panel:not([hidden])) { grid-template-columns: minmax(0, 1fr) 155px; }
+  #route-panel { grid-column: 2; grid-row: 3 / 5; padding: 8px; }
+  #route-panel h2 { font-size: 13px; }
+  #route-panel p, #route-panel label { font-size: 10px; }
+  #route-panel .actions { gap: 4px; }
+  #route-panel .actions button { padding: 6px; font-size: 10px; }
+  #symbol-keypad { gap: 3px; }
+  #symbol-keypad button { font-size: 18px; padding: 4px 0; }
+}
+@media (max-height: 540px) {
+  #symbol-keypad { margin: 3px 0; gap: 3px; }
+  #symbol-keypad button { padding: 2px; font-size: 16px; }
+  #route-panel { padding: 7px; }
+  #route-panel > p:first-of-type, #route-panel > label { display: none; }
+  #route-input { min-height: 45px; max-height: 70px; margin: 4px 0; }
 }

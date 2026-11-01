@@ -17,15 +17,29 @@
       <button id="destination-numbers" type="button" hidden>도착맵 팩 번호 매기기</button>
       <button id="view-start" type="button" hidden>시작맵 보기</button>
       <button id="view-3d" type="button" hidden aria-pressed="false">3D로 보기</button>
+      <button id="add-route" type="button" hidden>경로 추가하기</button>
     </div>
   </header>
   <main>
     <p id="feedback" role="status" aria-live="polite"></p>
+    <section id="route-panel" hidden aria-label="경로 입력과 재생">
+      <h2>경로 추가하기</h2>
+      <p>파레트 칸 번호를 순서대로 입력하세요. 각 경로는 앞 경로가 끝난 상태에서 이어집니다.</p>
+      <label for="route-input">경로 배열</label>
+      <textarea id="route-input" rows="4" placeholder="[[9,8,18,16,11],[21,16,18,8,9]]" spellcheck="false"></textarea>
+      <div class="actions">
+        <button id="route-play" type="button">입력 완료 · 재생</button>
+        <button id="route-pause" type="button" disabled>일시정지</button>
+        <button id="route-reset" type="button">처음으로</button>
+        <button id="route-close" type="button">닫기</button>
+      </div>
+      <p id="route-progress" role="status" aria-live="polite">시작맵에서 재생합니다. 시작맵·도착맵 원본은 유지됩니다.</p>
+    </section>
     <section id="pack-panel" hidden aria-label="시작맵 팩 선택">
       <h2>시작맵 만들기</h2>
       <p>팩을 고른 뒤 파레트 칸을 클릭하세요. 같은 팩을 다시 놓으면 지워지고, 다른 팩을 놓으면 교체됩니다.</p>
       <div id="pack-options" class="pack-options" role="group" aria-label="팩 종류"></div>
-      <p class="pack-note">위에서 본 모습은 모두 폭 2cm입니다. 옆모습은 폭 2cm, 높이 4·5·6cm를 같은 축척으로 표시합니다. 파레트 한 칸에 팩 하나를 배치합니다.</p>
+      <p class="pack-note">파레트 한 칸은 4×4cm, 팩의 폭·지름은 2cm입니다. 옆모습은 높이 4·5·6cm를 같은 축척으로 표시합니다. 한 칸에 팩 하나를 배치합니다.</p>
     </section>
     <div class="details"><span id="status" role="status">그리는 중 · 선택한 칸 0개</span><span>왼쪽 위부터 가로 순서로 번호가 매겨집니다.</span></div>
     <div class="viewport" aria-label="화면에 자동으로 맞춰지는 파레트 작업 공간">
@@ -43,8 +57,9 @@
     <form id="number-form" novalidate>
       <h2 id="number-title">팩 번호</h2>
       <p id="number-position" aria-live="polite"></p>
-      <label for="pack-number">팩 번호 (0–999999)</label>
-      <input id="pack-number" type="text" inputmode="numeric" maxlength="6" autocomplete="off">
+      <label for="pack-number">팩 번호 (숫자 또는 도형)</label>
+      <input id="pack-number" type="text" inputmode="text" maxlength="6" autocomplete="off">
+      <div id="symbol-keypad" aria-label="도형 번호판"></div>
       <p id="number-error" role="alert"></p>
       <div id="keypad" aria-label="숫자 번호판"></div>
       <div class="actions"><button id="cancel-number" type="button">닫기</button><button type="submit">저장 · 다음</button></div>

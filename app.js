@@ -1,6 +1,9 @@
 import { numberCells } from './numbering.mjs';
 import { packs, packPreview } from './packs.mjs';
 import { nextPackKey } from './pack-order.mjs';
+import { parsePackLabel, symbolLabels } from './pack-labels.mjs';
+import { prepareRoutes } from './routes.mjs';
+import { createRoutePlayer } from './route-player.mjs';
 
 const board = document.querySelector('#board');
 const toggle = document.querySelector('#toggle');
@@ -33,6 +36,73 @@ const threeContainer = document.querySelector('#three-view');
 let showing3D = false;
 let threeView = null;
 let threeLoading = false;
+const addRoute = document.querySelector('#add-route');
+const routePanel = document.querySelector('#route-panel');
+const routeInput = document.querySelector('#route-input');
+const routeProgress = document.querySelector('#route-progress');
+const pauseRoute = document.querySelector('#route-pause');
+let routeOpen = false;
+let playbackMap = null;
+let routePlan = null;
+let routeFinished = false;
+const routePlayer = createRoutePlayer({
+  onFrame(step, progress, index) {
+    const [fx, fy] = step.from.split(',').map(Number);
+    const [tx, ty] = step.to.split(',').map(Number);
+    const marker = board.querySelector(`[data-x="${fx}"][data-y="${fy}"] .pack-marker`);
+    const cellSize = parseFloat(board.style.getPropertyValue('--cell-size'));
+    if (marker) {
+      marker.style.transform = `translate(${(tx - fx) * cellSize * progress}px, ${(ty - fy) * cellSize * progress}px)`;
+      marker.style.zIndex = '3';
+    }
+    if (showing3D) threeView?.movePack(step.from, step.to, progress);
+    routeProgress.textContent = `경로 ${step.route + 1}/${routePlan.routes.length} · ${step.fromNumber} → ${step.toNumber} · 이동 ${index + 1}/${routePlan.steps.length}`;
+  },
+  onStep(step) {
+    playbackMap.delete(step.from); playbackMap.set(step.to, step.pack);
+    render();
+  },
+  onComplete() {
+    routeFinished = true;
+    pauseRoute.disabled = true;
+    const matches = destination.size && destination.size === playbackMap.size && [...destination].every(([key, pack]) => playbackMap.get(key) === pack);
+    routeProgress.textContent = `모든 경로 이동 완료${destination.size ? matches ? ' · 도착맵과 일치합니다.' : ' · 결과가 도착맵과 다릅니다.' : ''}`;
+  },
+  onState(running) {
+    pauseRoute.disabled = !routePlan || routeFinished;
+    pauseRoute.textContent = running ? '일시정지' : '이어서 재생';
+    routeInput.disabled = running;
+  },
+});
+
+function closeRoutes() {
+  routePlayer.reset();
+  routeOpen = false; playbackMap = null; routePlan = null; routeFinished = false;
+  routeInput.disabled = false; pauseRoute.disabled = true;
+  routeProgress.textContent = '시작맵에서 재생합니다. 시작맵·도착맵 원본은 유지됩니다.';
+}
+addRoute.addEventListener('click', () => {
+  if (routeOpen) closeRoutes();
+  else { routeOpen = true; showingDestination = false; playbackMap = new Map(placements); }
+  message(''); render();
+});
+document.querySelector('#route-play').addEventListener('click', () => {
+  try {
+    const plan = prepareRoutes(routeInput.value, [...selected.values()], placements);
+    routePlayer.reset(); routePlan = plan; routeFinished = false; playbackMap = new Map(placements);
+    message(''); render(); routePlayer.load(plan.steps); routePlayer.play();
+  } catch (error) { message(error.message); }
+});
+pauseRoute.addEventListener('click', () => {
+  if (routePlayer.running) routePlayer.pause(); else routePlayer.play();
+});
+document.querySelector('#route-reset').addEventListener('click', () => {
+  routePlayer.reset(); routePlan = null; routeFinished = false; playbackMap = new Map(placements);
+  pauseRoute.disabled = true; routeInput.disabled = false;
+  routeProgress.textContent = '시작 위치로 돌아왔습니다. 입력 완료 · 재생을 눌러 다시 시작하세요.';
+  render();
+});
+document.querySelector('#route-close').addEventListener('click', () => { closeRoutes(); render(); });
 
 function openNumberPanel(key) {
   editingKey = key;
@@ -93,7 +163,7 @@ function fitBoard() {
 }
 
 function message(text) { feedback.textContent = text; }
-function currentMap() { return showingDestination ? destination : placements; }
+function currentMap() { return routeOpen && playbackMap ? playbackMap : showingDestination ? destination : placements; }
 function remaining(pack) {
   const used = new Set(destination.values());
   return [...placements.values()].filter(item => item.id === pack.id && !used.has(item));
@@ -133,6 +203,10 @@ function render() {
   const drawing = mode === 'drawing';
   const mapping = mode === 'start' || mode === 'destination';
   const numbering = mode === 'numbering' || mode === 'destination-numbering';
+  if (routeOpen && (mode !== 'idle' || showingDestination)) closeRoutes();
+  routePanel.hidden = !routeOpen;
+  addRoute.hidden = mode !== 'idle' || !placementComplete;
+  addRoute.textContent = routeOpen ? '경로 닫기' : '경로 추가하기';
   if (mode !== 'idle') showing3D = false;
   view3DButton.hidden = mode !== 'idle' || selected.size === 0;
   view3DButton.textContent = showing3D ? '2D로 보기' : '3D로 보기';
@@ -205,12 +279,13 @@ function render() {
   instruction.textContent = instructions[mode];
   if (showing3D) {
     instruction.textContent = `${showingDestination ? '도착맵' : '시작맵'} 3D 보기 · 사각팩 2×2cm / 원형팩 지름 2cm · 높이 소 4, 중 5, 대 6cm`;
-    threeView.setData([...selected.values()], currentMap());
+    threeView.setData([...selected.values()], currentMap(), { preserveView: routeOpen });
   }
   fitBoard();
 }
 
 view3DButton.addEventListener('click', async () => {
+  if (routePlayer.running) routePlayer.pause();
   if (threeLoading) return;
   message('');
   if (showing3D) { showing3D = false; render(); return; }
@@ -324,11 +399,17 @@ for (const digit of ['1','2','3','4','5','6','7','8','9','지우기','0','←'])
   });
   document.querySelector('#keypad').append(button);
 }
+for (const symbol of symbolLabels) {
+  const button = document.createElement('button');
+  button.type = 'button'; button.textContent = symbol;
+  button.addEventListener('click', () => { input.value = symbol; input.focus(); input.select(); });
+  document.querySelector('#symbol-keypad').append(button);
+}
 document.querySelector('#number-form').addEventListener('submit', event => {
   event.preventDefault();
-  const value = input.value.trim();
-  if (!/^\d{1,6}$/.test(value)) { numberError.textContent = '0부터 999999까지의 정수를 입력해 주세요.'; return; }
-  const number = Number(value);
+  let number;
+  try { number = parsePackLabel(input.value); }
+  catch (error) { numberError.textContent = error.message; return; }
   if (mode === 'destination-numbering') {
     const target = [...placements.values()].find(pack => pack.id === editingPack.id && pack.number === number);
     if (!target) {
