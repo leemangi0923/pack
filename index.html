@@ -9,9 +9,18 @@
 <body>
   <header>
     <div><h1>파레트 그리기</h1><p id="instruction">칸을 클릭해 그리거나 지울 수 있습니다. 빈칸도 번호에 포함됩니다.</p></div>
-    <button id="toggle" type="button" aria-pressed="true">파레트 그리기 종료</button>
+    <div class="actions">
+      <button id="toggle" type="button" aria-pressed="true">파레트 그리기 종료</button>
+      <button id="start-map" type="button" hidden>시작맵 만들기</button>
+    </div>
   </header>
   <main>
+    <section id="pack-panel" hidden aria-label="시작맵 팩 선택">
+      <h2>시작맵 만들기</h2>
+      <p>팩을 고른 뒤 파레트 칸을 클릭하세요. 같은 팩을 다시 놓으면 지워지고, 다른 팩을 놓으면 교체됩니다.</p>
+      <div id="pack-options" class="pack-options" role="group" aria-label="팩 종류"></div>
+      <p class="pack-note">위에서 본 모습은 모두 폭 2cm입니다. 옆모습은 폭 2cm, 높이 4·5·6cm를 같은 축척으로 표시합니다. 파레트 한 칸에 팩 하나를 배치합니다.</p>
+    </section>
     <div class="details"><span id="status" role="status">그리는 중 · 선택한 칸 0개</span><span>왼쪽 위부터 가로 순서로 번호가 매겨집니다.</span></div>
     <div class="viewport" tabindex="0" aria-label="파레트 작업 공간. 스크롤하여 이동할 수 있습니다.">
       <div id="board" class="board" role="group" aria-label="파레트 격자"></div>
