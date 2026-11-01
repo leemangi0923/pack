@@ -30,17 +30,18 @@
     <div class="viewport" aria-label="화면에 자동으로 맞춰지는 파레트 작업 공간">
       <div id="board" class="board" role="group" aria-label="파레트 격자"></div>
     </div>
-  </main>
-  <dialog id="number-dialog" aria-labelledby="number-title">
+  <aside id="number-dialog" hidden aria-labelledby="number-title">
     <form id="number-form" novalidate>
       <h2 id="number-title">팩 번호</h2>
+      <p id="number-position" aria-live="polite"></p>
       <label for="pack-number">팩 번호 (0–999999)</label>
       <input id="pack-number" type="text" inputmode="numeric" maxlength="6" autocomplete="off">
       <p id="number-error" role="alert"></p>
       <div id="keypad" aria-label="숫자 번호판"></div>
-      <div class="actions"><button id="cancel-number" type="button">취소</button><button type="submit">번호 저장</button></div>
+      <div class="actions"><button id="cancel-number" type="button">닫기</button><button type="submit">저장 · 다음</button></div>
     </form>
-  </dialog>
+  </aside>
+  </main>
   <script type="module" src="app.js"></script>
 </body>
 </html>

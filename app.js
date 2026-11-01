@@ -1,5 +1,6 @@
 import { numberCells } from './numbering.mjs';
 import { packs, packPreview } from './packs.mjs';
+import { nextPackKey } from './pack-order.mjs';
 
 const board = document.querySelector('#board');
 const toggle = document.querySelector('#toggle');
@@ -26,6 +27,39 @@ let numberingComplete = false;
 let chosenPack = packs[0];
 let editingPack = null;
 let editingKey = null;
+
+function openNumberPanel(key) {
+  editingKey = key;
+  editingPack = currentMap().get(key);
+  input.value = editingPack.number ?? '';
+  numberError.textContent = '';
+  document.querySelector('#number-title').textContent = `${editingPack.name} 번호`;
+  const [x, y] = key.split(',').map(Number);
+  document.querySelector('#number-position').textContent = `${y + 1}행 ${x + 1}열 · 저장하면 다음 팩으로 이동`;
+  render();
+  input.focus();
+  input.select();
+}
+
+function closeNumberPanel() {
+  const previousKey = editingKey;
+  editingKey = null;
+  editingPack = null;
+  render();
+  if (previousKey) {
+    const [x, y] = previousKey.split(',');
+    board.querySelector(`[data-x="${x}"][data-y="${y}"]`).focus();
+  }
+}
+
+function advanceNumberPanel() {
+  const nextKey = nextPackKey(currentMap().keys(), editingKey);
+  if (nextKey) openNumberPanel(nextKey);
+  else {
+    closeNumberPanel();
+    message('마지막 팩까지 번호를 저장했습니다. 번호 매기기 완료 버튼을 눌러 주세요.');
+  }
+}
 
 function fitBoard() {
   const cells = [...selected.values()];
@@ -92,6 +126,9 @@ board.append(fragment);
 function render() {
   const drawing = mode === 'drawing';
   const mapping = mode === 'start' || mode === 'destination';
+  const numbering = mode === 'numbering' || mode === 'destination-numbering';
+  if (!numbering) { editingKey = null; editingPack = null; }
+  dialog.hidden = !numbering || editingKey === null;
   const map = currentMap();
   const numbers = numberCells([...selected.values()]);
   for (const cell of board.children) {
@@ -100,6 +137,7 @@ function render() {
     const pack = map.get(key);
     cell.classList.toggle('selected', active);
     cell.classList.toggle('occupied', Boolean(pack));
+    cell.classList.toggle('numbering-current', !dialog.hidden && key === editingKey);
     cell.textContent = '';
     if (active) {
       const number = document.createElement('span');
@@ -171,14 +209,7 @@ board.addEventListener('click', event => {
     else placements.set(key, { ...chosenPack, number: null });
     invalidate();
   } else if ((mode === 'numbering' || mode === 'destination-numbering') && currentMap().has(key)) {
-    editingKey = key;
-    editingPack = currentMap().get(key);
-    input.value = editingPack.number ?? '';
-    numberError.textContent = '';
-    document.querySelector('#number-title').textContent = `${editingPack.name} 번호`;
-    dialog.showModal();
-    input.focus();
-    input.select();
+    openNumberPanel(key);
     return;
   } else if (mode === 'destination' && selected.has(key)) {
     if (destination.get(key)?.id === chosenPack.id) destination.delete(key);
@@ -240,8 +271,12 @@ for (const digit of ['1','2','3','4','5','6','7','8','9','지우기','0','←'])
   button.textContent = digit;
   button.addEventListener('click', () => {
     if (digit === '지우기') input.value = '';
-    else if (digit === '←') input.value = input.value.slice(0, -1);
-    else if (input.value.length < 6) input.value += digit;
+    else {
+      const start = input.selectionStart;
+      const end = input.selectionEnd;
+      if (digit === '←') input.setRangeText('', start === end ? Math.max(0, start - 1) : start, end, 'end');
+      else if (input.value.length - (end - start) < 6) input.setRangeText(digit, start, end, 'end');
+    }
     input.focus();
   });
   document.querySelector('#keypad').append(button);
@@ -260,15 +295,17 @@ document.querySelector('#number-form').addEventListener('submit', event => {
     const other = [...destination.entries()].find(([, pack]) => pack === target);
     if (other) destination.set(other[0], editingPack);
     destination.set(editingKey, target);
-    dialog.close(); render(); return;
+    advanceNumberPanel(); return;
   }
   if ([...placements.values()].some(pack => pack !== editingPack && pack.number === number)) {
     numberError.textContent = '이미 사용 중인 번호입니다. 다른 번호를 입력해 주세요.'; return;
   }
   editingPack.number = number;
-  dialog.close();
-  render();
+  advanceNumberPanel();
 });
-document.querySelector('#cancel-number').addEventListener('click', () => dialog.close());
+document.querySelector('#cancel-number').addEventListener('click', closeNumberPanel);
+dialog.addEventListener('keydown', event => {
+  if (event.key === 'Escape') { event.preventDefault(); closeNumberPanel(); }
+});
 render();
 new ResizeObserver(fitBoard).observe(document.querySelector('.viewport'));
