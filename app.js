@@ -46,6 +46,8 @@ let routeOpen = false;
 let playbackMap = null;
 let routePlan = null;
 let routeFinished = false;
+let dragStroke = null;
+let suppressDragClick = false;
 const saveStatus = document.querySelector('#save-status');
 let saveTimer = null;
 let lastSaved = null;
@@ -200,6 +202,7 @@ function advanceNumberPanel() {
 }
 
 function fitBoard() {
+  if (dragStroke) return;
   const cells = [...selected.values()];
   const drawing = mode === 'drawing';
   const padding = drawing ? 2 : 0;
@@ -353,7 +356,7 @@ function render() {
   const names = { drawing: '파레트 그리는 중', idle: showingDestination ? '도착맵 보기' : '시작맵 보기', start: '시작맵 배치 중', numbering: '팩 번호 매기는 중', destination: '도착맵 배치 중', 'destination-numbering': '도착맵 팩 번호 매기는 중' };
   status.textContent = `${names[mode]} · 파레트 ${selected.size}칸 · 팩 ${map.size}개`;
   const instructions = {
-    drawing: '칸을 클릭해 그리거나 지울 수 있습니다. 빈칸도 번호에 포함됩니다.',
+    drawing: '클릭으로 선택·해제하고, 누른 채 드래그하면 여러 칸을 선택합니다. 빈칸도 번호에 포함됩니다.',
     start: '팩을 골라 배치하세요. 배치를 마치면 팩 번호를 매길 수 있습니다.',
     numbering: '팩을 클릭해 번호를 입력하세요. 같은 번호나 도형을 여러 팩에 사용할 수 있습니다.',
     destination: '시작맵의 팩을 옮겨 배치하세요. 종류·크기별 남은 수량만 사용할 수 있고 번호는 그대로 유지됩니다.',
@@ -396,7 +399,57 @@ document.querySelector('#three-reset').addEventListener('click', () => threeView
 document.querySelector('#three-in').addEventListener('click', () => threeView?.zoom(0.8));
 document.querySelector('#three-out').addEventListener('click', () => threeView?.zoom(1.25));
 
+board.addEventListener('pointerdown', event => {
+  suppressDragClick = false;
+  if (mode !== 'drawing' || event.button !== 0 || !event.isPrimary) return;
+  const cell = event.target.closest('.cell');
+  if (!cell) return;
+  dragStroke = {
+    pointerId: event.pointerId, startX: event.clientX, startY: event.clientY,
+    previous: { x: Number(cell.dataset.x), y: Number(cell.dataset.y) },
+    dragged: false,
+  };
+});
+board.addEventListener('pointermove', event => {
+  if (!dragStroke || event.pointerId !== dragStroke.pointerId || mode !== 'drawing') return;
+  if (!(event.buttons & 1)) { finishStroke(); return; }
+  const rect = board.getBoundingClientRect();
+  if (event.clientX < rect.left || event.clientX >= rect.right || event.clientY < rect.top || event.clientY >= rect.bottom) return;
+  const origin = board.querySelector('.cell:not([hidden])');
+  const size = parseFloat(board.style.getPropertyValue('--cell-size'));
+  const x = Number(origin.dataset.x) + Math.floor((event.clientX - rect.left) / size);
+  const y = Number(origin.dataset.y) + Math.floor((event.clientY - rect.top) / size);
+  if (!dragStroke.dragged && Math.hypot(event.clientX - dragStroke.startX, event.clientY - dragStroke.startY) < 5) return;
+  if (!dragStroke.dragged) board.setPointerCapture(event.pointerId);
+  dragStroke.dragged = true;
+  const previous = dragStroke.previous;
+  const distance = Math.max(Math.abs(x - previous.x), Math.abs(y - previous.y));
+  let changed = false;
+  for (let i = 0; i <= distance; i++) {
+    const nextX = Math.round(previous.x + (x - previous.x) * (distance ? i / distance : 0));
+    const nextY = Math.round(previous.y + (y - previous.y) * (distance ? i / distance : 0));
+    const key = `${nextX},${nextY}`;
+    if (!selected.has(key)) { selected.set(key, { x: nextX, y: nextY }); changed = true; }
+  }
+  dragStroke.previous = { x, y };
+  if (changed) { message(''); invalidate(); render(); }
+});
+function finishStroke() {
+  if (!dragStroke) return;
+  const { pointerId, dragged } = dragStroke;
+  dragStroke = null;
+  suppressDragClick = dragged;
+  if (board.hasPointerCapture(pointerId)) board.releasePointerCapture(pointerId);
+  fitBoard();
+}
+board.addEventListener('pointerup', finishStroke);
+window.addEventListener('pointerup', finishStroke);
+board.addEventListener('pointercancel', finishStroke);
+board.addEventListener('lostpointercapture', finishStroke);
+window.addEventListener('blur', finishStroke);
+board.addEventListener('dragstart', event => event.preventDefault());
 board.addEventListener('click', event => {
+  if (suppressDragClick && event.detail > 0) { suppressDragClick = false; return; }
   const cell = event.target.closest('.cell');
   if (!cell) return;
   const x = Number(cell.dataset.x);
