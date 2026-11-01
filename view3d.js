@@ -87,15 +87,18 @@ export function create3DView(container) {
     resources.forEach(resource => resource.dispose());
     group.clear();
   }
-  function setData(cells, placements, { preserveView = false } = {}) {
+  function setData(cells, placements, { preserveView = false, layers = [{ cells, placements, level: 0, active: true }] } = {}) {
     clear();
     movingPacks.clear();
-    const model = sceneModel(cells, placements);
+    const alignment = layers.flatMap(layer => layer.cells);
+    const model = layers.flatMap(layer => sceneModel(layer.cells, layer.placements, alignment).map(item => ({
+      ...item, key: layer.active ? item.key : `${layer.level}:${item.key}`, elevation: layer.level * 8,
+    })));
     positions = new Map(model.map(item => [item.key, item]));
     for (const item of model) {
       const base = new THREE.Mesh(new THREE.BoxGeometry(4, 0.18, 4),
         new THREE.MeshStandardMaterial({ color: 0xe2e8f0, roughness: 0.9 }));
-      base.position.set(item.x, -0.09, item.z);
+      base.position.set(item.x, item.elevation -0.09, item.z);
       group.add(base);
       const outline = new THREE.LineSegments(new THREE.EdgesGeometry(base.geometry),
         new THREE.LineBasicMaterial({ color: 0x475569 }));
@@ -109,7 +112,7 @@ export function create3DView(container) {
         const mesh = new THREE.Mesh(geometry, new THREE.MeshStandardMaterial({
           color: pack.shape === 'square' ? 0xdc2626 : 0x2563eb, roughness: 0.45,
         }));
-        mesh.position.set(item.x, pack.height / 2, item.z);
+        mesh.position.set(item.x, item.elevation + pack.height / 2, item.z);
         group.add(mesh);
         const inscription = new THREE.Mesh(new THREE.PlaneGeometry(1.8, 0.9),
           new THREE.MeshBasicMaterial({
@@ -118,7 +121,7 @@ export function create3DView(container) {
             polygonOffsetFactor: -1, polygonOffsetUnits: -1,
           }));
         inscription.rotation.x = -Math.PI / 2;
-        inscription.position.set(item.x, pack.height + 0.005, item.z);
+        inscription.position.set(item.x, item.elevation + pack.height + 0.005, item.z);
         group.add(inscription);
         movingPacks.set(item.key, { mesh, inscription });
       }
@@ -126,7 +129,7 @@ export function create3DView(container) {
       const number = new THREE.Mesh(new THREE.PlaneGeometry(2.8, 1.4),
         new THREE.MeshBasicMaterial({ map: label(item.cellNumber, '#475569') }));
       number.rotation.x = -Math.PI / 2;
-      number.position.set(item.x, 0.01, item.z);
+      number.position.set(item.x, item.elevation + 0.01, item.z);
       group.add(number);
     }
     const bounds = new THREE.Box3().setFromObject(group);

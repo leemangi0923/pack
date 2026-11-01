@@ -51,14 +51,54 @@ let suppressDragClick = false;
 const saveStatus = document.querySelector('#save-status');
 let saveTimer = null;
 let lastSaved = null;
+let activeLayer = 0;
+let layerSnapshots = [null, null, null];
 
-function workspaceText() {
+function currentLayerText() {
   return encodeWorkspace({
     selected, placements, destination, mode, showingDestination, placementComplete,
     numberingComplete, chosenPack, routeText: routeInput.value,
     numberDraft: editingKey === null ? null : { key: editingKey, value: input.value },
   });
 }
+function workspaceText() {
+  const layers = [...layerSnapshots];
+  layers[activeLayer] = currentLayerText();
+  return JSON.stringify({ schema: 2, activeLayer, layers });
+}
+function applyLayer(restored) {
+  editingKey = null; editingPack = null;
+  for (const [target, source] of [[selected, restored.selected], [placements, restored.placements], [destination, restored.destination]]) {
+    target.clear(); for (const [key, value] of source) target.set(key, value);
+  }
+  mode = restored.mode; showingDestination = restored.showingDestination;
+  placementComplete = restored.placementComplete; numberingComplete = restored.numberingComplete;
+  chosenPack = restored.chosenPack; routeInput.value = restored.routeText;
+  if (restored.numberDraft) {
+    editingKey = restored.numberDraft.key; editingPack = currentMap().get(editingKey);
+    input.value = restored.numberDraft.value;
+    document.querySelector('#number-title').textContent = `${editingPack.name} 번호`;
+    const [x, y] = editingKey.split(',').map(Number);
+    document.querySelector('#number-position').textContent = `${y + 1}행 ${x + 1}열 · 저장하면 다음 팩으로 이동`;
+  }
+}
+document.querySelector('#layer-tabs').addEventListener('click', event => {
+  const button = event.target.closest('button[data-layer]');
+  if (!button) return;
+  const next = Number(button.dataset.layer);
+  if (next === activeLayer) return;
+  finishStroke();
+  layerSnapshots[activeLayer] = currentLayerText();
+  closeRoutes(); showing3D = false;
+  activeLayer = next;
+  const fresh = encodeWorkspace({
+    selected: new Map([['5,3', { x: 5, y: 3 }]]), placements: new Map(), destination: new Map(),
+    mode: 'drawing', showingDestination: false, placementComplete: false, numberingComplete: false,
+    chosenPack: packs[0], routeText: '', numberDraft: null,
+  });
+  applyLayer(decodeWorkspace(layerSnapshots[next] ?? fresh));
+  message(''); render();
+});
 function saveWorkspace() {
   clearTimeout(saveTimer);
   try {
@@ -83,18 +123,21 @@ function restoreWorkspace() {
     const text = localStorage.getItem(SAVE_KEY);
     if (text === null) return;
     let restored;
-    try { restored = decodeWorkspace(text); }
+    try {
+      const saved = JSON.parse(text);
+      if (saved.schema === 2) {
+        if (!Array.isArray(saved.layers) || saved.layers.length !== 3 || !Number.isInteger(saved.activeLayer) || saved.activeLayer < 0 || saved.activeLayer > 2 || typeof saved.layers[saved.activeLayer] !== 'string') throw new Error('Invalid layers');
+        saved.layers.forEach(layer => { if (layer !== null) decodeWorkspace(layer); });
+        layerSnapshots = saved.layers; activeLayer = saved.activeLayer;
+        restored = decodeWorkspace(saved.layers[activeLayer]);
+      } else restored = decodeWorkspace(text);
+    }
     catch {
       localStorage.setItem(`${SAVE_KEY}.backup`, text);
       message('저장 데이터를 복원하지 못했습니다. 기존 데이터는 브라우저에 백업하고 새 작업을 시작합니다.');
       return;
     }
-    for (const [target, source] of [[selected, restored.selected], [placements, restored.placements], [destination, restored.destination]]) {
-      target.clear(); for (const [key, value] of source) target.set(key, value);
-    }
-    mode = restored.mode; showingDestination = restored.showingDestination;
-    placementComplete = restored.placementComplete; numberingComplete = restored.numberingComplete;
-    chosenPack = restored.chosenPack; routeInput.value = restored.routeText;
+    applyLayer(restored);
     if (restored.numberDraft) {
       editingKey = restored.numberDraft.key; editingPack = currentMap().get(editingKey);
       input.value = restored.numberDraft.value;
@@ -265,6 +308,9 @@ for (let y = 0; y < 40; y++) {
 board.append(fragment);
 
 function render() {
+  for (const button of document.querySelectorAll('#layer-tabs button')) {
+    button.setAttribute('aria-pressed', String(Number(button.dataset.layer) === activeLayer));
+  }
   const drawing = mode === 'drawing';
   const mapping = mode === 'start' || mode === 'destination';
   const numbering = mode === 'numbering' || mode === 'destination-numbering';
@@ -354,7 +400,7 @@ function render() {
       ? `남은 수량 ${remaining(packs.find(pack => pack.id === option.dataset.pack)).length}개` : '';
   }
   const names = { drawing: '파레트 그리는 중', idle: showingDestination ? '도착맵 보기' : '시작맵 보기', start: '시작맵 배치 중', numbering: '팩 번호 매기는 중', destination: '도착맵 배치 중', 'destination-numbering': '도착맵 팩 번호 매기는 중' };
-  status.textContent = `${names[mode]} · 파레트 ${selected.size}칸 · 팩 ${map.size}개`;
+  status.textContent = `${activeLayer + 1}층 · ${names[mode]} · 파레트 ${selected.size}칸 · 팩 ${map.size}개`;
   const instructions = {
     drawing: '클릭으로 선택·해제하고, 누른 채 드래그하면 여러 칸을 선택합니다. 빈칸도 번호에 포함됩니다.',
     start: '팩을 골라 배치하세요. 배치를 마치면 팩 번호를 매길 수 있습니다.',
@@ -366,7 +412,13 @@ function render() {
   instruction.textContent = instructions[mode];
   if (showing3D) {
     instruction.textContent = `${showingDestination ? '도착맵' : '시작맵'} 3D 보기 · 사각팩 2×2cm / 원형팩 지름 2cm · 높이 소 4, 중 5, 대 6cm`;
-    threeView.setData([...selected.values()], currentMap(), { preserveView: routeOpen });
+    const layers = layerSnapshots.map((snapshot, index) => {
+      if (index === activeLayer) return { cells: [...selected.values()], placements: currentMap(), level: index, active: true };
+      if (!snapshot) return { cells: [], placements: new Map(), level: index };
+      const layer = decodeWorkspace(snapshot);
+      return { cells: [...layer.selected.values()], placements: showingDestination ? layer.destination : layer.placements, level: index };
+    });
+    threeView.setData([...selected.values()], currentMap(), { preserveView: routeOpen, layers });
   }
   fitBoard();
   scheduleSave();

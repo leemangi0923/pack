@@ -190,3 +190,7 @@ main:not([data-tool="none"]) { grid-template-columns: minmax(0, 1fr) 278px; }
  #instruction { font-size: 9px; }
 }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+#layer-tabs { margin-left: auto; gap: 3px; padding: 3px; background: #eaeef6; border-radius: 8px; }
+#layer-tabs button { min-height: 25px; padding: 5px 10px; border: 0; background: transparent; box-shadow: none; font-size: 11px; }
+#layer-tabs button[aria-pressed="true"] { background: white; color: var(--accent); box-shadow: 0 1px 4px #25304715; }
+@media(max-width:600px) { .details { flex-wrap: wrap; } #layer-tabs button { padding: 4px 9px; min-height: 23px; font-size: 10px; } }
