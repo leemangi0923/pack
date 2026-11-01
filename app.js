@@ -4,6 +4,7 @@ import { nextPackKey } from './pack-order.mjs';
 import { parsePackLabel, symbolLabels } from './pack-labels.mjs';
 import { prepareRoutes } from './routes.mjs';
 import { createRoutePlayer } from './route-player.mjs';
+import { SAVE_KEY, encodeWorkspace, decodeWorkspace } from './autosave.mjs';
 
 const board = document.querySelector('#board');
 const toggle = document.querySelector('#toggle');
@@ -45,6 +46,66 @@ let routeOpen = false;
 let playbackMap = null;
 let routePlan = null;
 let routeFinished = false;
+const saveStatus = document.querySelector('#save-status');
+let saveTimer = null;
+let lastSaved = null;
+
+function workspaceText() {
+  return encodeWorkspace({
+    selected, placements, destination, mode, showingDestination, placementComplete,
+    numberingComplete, chosenPack, routeText: routeInput.value,
+    numberDraft: editingKey === null ? null : { key: editingKey, value: input.value },
+  });
+}
+function saveWorkspace() {
+  clearTimeout(saveTimer);
+  try {
+    const text = workspaceText();
+    if (text !== lastSaved) { localStorage.setItem(SAVE_KEY, text); lastSaved = text; }
+    saveStatus.textContent = '자동 저장됨';
+    saveStatus.title = '이 기기의 현재 브라우저에 저장됩니다.';
+    saveStatus.dataset.error = 'false';
+  } catch {
+    saveStatus.textContent = '자동 저장 실패';
+    saveStatus.title = '브라우저 저장 공간이 부족하거나 차단되어 있습니다. 현재 작업은 이 화면에서 계속할 수 있습니다.';
+    saveStatus.dataset.error = 'true';
+  }
+}
+function scheduleSave() {
+  clearTimeout(saveTimer);
+  if (workspaceText() !== lastSaved) saveStatus.textContent = '자동 저장 중…';
+  saveTimer = setTimeout(saveWorkspace, 200);
+}
+function restoreWorkspace() {
+  try {
+    const text = localStorage.getItem(SAVE_KEY);
+    if (text === null) return;
+    let restored;
+    try { restored = decodeWorkspace(text); }
+    catch {
+      localStorage.setItem(`${SAVE_KEY}.backup`, text);
+      message('저장 데이터를 복원하지 못했습니다. 기존 데이터는 브라우저에 백업하고 새 작업을 시작합니다.');
+      return;
+    }
+    for (const [target, source] of [[selected, restored.selected], [placements, restored.placements], [destination, restored.destination]]) {
+      target.clear(); for (const [key, value] of source) target.set(key, value);
+    }
+    mode = restored.mode; showingDestination = restored.showingDestination;
+    placementComplete = restored.placementComplete; numberingComplete = restored.numberingComplete;
+    chosenPack = restored.chosenPack; routeInput.value = restored.routeText;
+    if (restored.numberDraft) {
+      editingKey = restored.numberDraft.key; editingPack = currentMap().get(editingKey);
+      input.value = restored.numberDraft.value;
+      document.querySelector('#number-title').textContent = `${editingPack.name} 번호`;
+      const [x, y] = editingKey.split(',').map(Number);
+      document.querySelector('#number-position').textContent = `${y + 1}행 ${x + 1}열 · 저장하면 다음 팩으로 이동`;
+    }
+    lastSaved = text;
+    saveStatus.textContent = '자동 저장 복원됨';
+  } catch {
+    saveStatus.textContent = '자동 저장 사용 불가'; saveStatus.dataset.error = 'true';
+  }
+}
 const routePlayer = createRoutePlayer({
   onFrame(step, progress, index) {
     const [fx, fy] = step.from.split(',').map(Number);
@@ -287,6 +348,7 @@ function render() {
     threeView.setData([...selected.values()], currentMap(), { preserveView: routeOpen });
   }
   fitBoard();
+  scheduleSave();
 }
 
 view3DButton.addEventListener('click', async () => {
@@ -434,5 +496,12 @@ document.querySelector('#cancel-number').addEventListener('click', closeNumberPa
 dialog.addEventListener('keydown', event => {
   if (event.key === 'Escape') { event.preventDefault(); closeNumberPanel(); }
 });
+restoreWorkspace();
 render();
+routeInput.addEventListener('input', scheduleSave);
+input.addEventListener('input', scheduleSave);
+document.querySelector('#keypad').addEventListener('click', scheduleSave);
+document.querySelector('#symbol-keypad').addEventListener('click', scheduleSave);
+window.addEventListener('pagehide', saveWorkspace);
+document.addEventListener('visibilitychange', () => { if (document.hidden) saveWorkspace(); });
 new ResizeObserver(fitBoard).observe(document.querySelector('.viewport'));

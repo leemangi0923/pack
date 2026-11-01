@@ -5,6 +5,8 @@ body { margin: 0; height: 100dvh; display: flex; flex-direction: column; overflo
 header { padding: 16px 20px; display: flex; align-items: center; justify-content: space-between; gap: 16px; background: white; border-bottom: 1px solid #e1e5ed; flex-shrink: 0; }
 h1 { font-size: 21px; margin: 0 0 5px; }
 .version { display: inline-block; vertical-align: middle; margin-left: 6px; padding: 3px 7px; border-radius: 5px; background: #e8eef8; color: #52637d; font-size: 11px; font-weight: 500; white-space: nowrap; }
+#save-status { display: inline-block; color: #64748b; font-size: 10px; font-weight: 400; vertical-align: middle; }
+#save-status[data-error="true"] { color: #b91c1c; }
 p { color: #647084; margin: 0; font-size: 13px; line-height: 1.5; }
 header > div:first-child { max-width: 520px; }
 .actions { display: flex; flex-wrap: wrap; gap: 7px; }
