@@ -18,6 +18,7 @@ const dialog = document.querySelector('#number-dialog');
 const input = document.querySelector('#pack-number');
 const numberError = document.querySelector('#number-error');
 const selected = new Map();
+selected.set('5,3', { x: 5, y: 3 });
 const placements = new Map();
 const destination = new Map();
 let mode = 'drawing';
@@ -27,6 +28,11 @@ let numberingComplete = false;
 let chosenPack = packs[0];
 let editingPack = null;
 let editingKey = null;
+const view3DButton = document.querySelector('#view-3d');
+const threeContainer = document.querySelector('#three-view');
+let showing3D = false;
+let threeView = null;
+let threeLoading = false;
 
 function openNumberPanel(key) {
   editingKey = key;
@@ -127,6 +133,13 @@ function render() {
   const drawing = mode === 'drawing';
   const mapping = mode === 'start' || mode === 'destination';
   const numbering = mode === 'numbering' || mode === 'destination-numbering';
+  if (mode !== 'idle') showing3D = false;
+  view3DButton.hidden = mode !== 'idle' || selected.size === 0;
+  view3DButton.textContent = showing3D ? '2D로 보기' : '3D로 보기';
+  view3DButton.setAttribute('aria-pressed', String(showing3D));
+  threeContainer.hidden = !showing3D;
+  board.hidden = showing3D;
+  threeView?.setVisible(showing3D);
   if (!numbering) { editingKey = null; editingPack = null; }
   dialog.hidden = !numbering || editingKey === null;
   const map = currentMap();
@@ -190,8 +203,38 @@ function render() {
     idle: '시작맵 배치 → 팩 번호 매기기 → 도착맵 만들기 순서로 진행하세요.',
   };
   instruction.textContent = instructions[mode];
+  if (showing3D) {
+    instruction.textContent = `${showingDestination ? '도착맵' : '시작맵'} 3D 보기 · 사각팩 2×2cm / 원형팩 지름 2cm · 높이 소 4, 중 5, 대 6cm`;
+    threeView.setData([...selected.values()], currentMap());
+  }
   fitBoard();
 }
+
+view3DButton.addEventListener('click', async () => {
+  if (threeLoading) return;
+  message('');
+  if (showing3D) { showing3D = false; render(); return; }
+  if (!threeView) {
+    threeLoading = true;
+    view3DButton.disabled = true;
+    try {
+      const { create3DView } = await import('./view3d.js');
+      threeView = create3DView(threeContainer);
+    } catch {
+      message('이 브라우저에서 3D 그래픽을 시작할 수 없습니다. WebGL 지원을 확인해 주세요. 2D 편집은 계속 사용할 수 있습니다.');
+      return;
+    } finally {
+      threeLoading = false;
+      view3DButton.disabled = false;
+    }
+  }
+  if (mode !== 'idle') return;
+  showing3D = true;
+  render();
+});
+document.querySelector('#three-reset').addEventListener('click', () => threeView?.reset());
+document.querySelector('#three-in').addEventListener('click', () => threeView?.zoom(0.8));
+document.querySelector('#three-out').addEventListener('click', () => threeView?.zoom(1.25));
 
 board.addEventListener('click', event => {
   const cell = event.target.closest('.cell');

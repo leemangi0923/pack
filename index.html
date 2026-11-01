@@ -16,6 +16,7 @@
       <button id="destination-map" type="button" hidden>도착맵 만들기</button>
       <button id="destination-numbers" type="button" hidden>도착맵 팩 번호 매기기</button>
       <button id="view-start" type="button" hidden>시작맵 보기</button>
+      <button id="view-3d" type="button" hidden aria-pressed="false">3D로 보기</button>
     </div>
   </header>
   <main>
@@ -29,6 +30,14 @@
     <div class="details"><span id="status" role="status">그리는 중 · 선택한 칸 0개</span><span>왼쪽 위부터 가로 순서로 번호가 매겨집니다.</span></div>
     <div class="viewport" aria-label="화면에 자동으로 맞춰지는 파레트 작업 공간">
       <div id="board" class="board" role="group" aria-label="파레트 격자"></div>
+      <section id="three-view" hidden aria-label="3D 파레트 보기">
+        <div class="three-tools actions">
+          <button id="three-reset" type="button">시점 초기화</button>
+          <button id="three-in" type="button" aria-label="3D 확대">＋</button>
+          <button id="three-out" type="button" aria-label="3D 축소">−</button>
+        </div>
+        <p class="three-help">드래그: 회전 · 휠/두 손가락: 확대 · 방향키: 회전</p>
+      </section>
     </div>
   <aside id="number-dialog" hidden aria-labelledby="number-title">
     <form id="number-form" novalidate>
@@ -42,6 +51,7 @@
     </form>
   </aside>
   </main>
+  <script type="importmap">{"imports":{"three":"./vendor/three/three.module.min.js"}}</script>
   <script type="module" src="app.js"></script>
 </body>
 </html>
