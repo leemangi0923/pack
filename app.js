@@ -8,6 +8,7 @@ const instruction = document.querySelector('#instruction');
 const startMap = document.querySelector('#start-map');
 const numberPacks = document.querySelector('#number-packs');
 const destinationButton = document.querySelector('#destination-map');
+const destinationNumbers = document.querySelector('#destination-numbers');
 const viewStart = document.querySelector('#view-start');
 const packPanel = document.querySelector('#pack-panel');
 const packOptions = document.querySelector('#pack-options');
@@ -24,6 +25,32 @@ let placementComplete = false;
 let numberingComplete = false;
 let chosenPack = packs[0];
 let editingPack = null;
+let editingKey = null;
+
+function fitBoard() {
+  const cells = [...selected.values()];
+  const drawing = mode === 'drawing';
+  const padding = drawing ? 2 : 0;
+  const minX = cells.length ? Math.max(0, Math.min(...cells.map(cell => cell.x)) - padding) : 0;
+  const minY = cells.length ? Math.max(0, Math.min(...cells.map(cell => cell.y)) - padding) : 0;
+  const maxX = cells.length ? Math.min(39, Math.max(...cells.map(cell => cell.x)) + padding) : 11;
+  const maxY = cells.length ? Math.min(39, Math.max(...cells.map(cell => cell.y)) + padding) : 7;
+  const columns = Math.max(drawing ? 12 : 1, maxX - minX + 1);
+  const rows = Math.max(drawing ? 8 : 1, maxY - minY + 1);
+  const left = Math.min(minX, 40 - columns);
+  const top = Math.min(minY, 40 - rows);
+  const viewport = document.querySelector('.viewport');
+  const size = Math.max(1, Math.min(80, (viewport.clientWidth - 16) / columns, (viewport.clientHeight - 16) / rows));
+  board.style.setProperty('--cell-size', `${size}px`);
+  board.style.gridTemplateColumns = `repeat(${columns}, var(--cell-size))`;
+  board.style.width = `${size * columns}px`;
+  board.style.height = `${size * rows}px`;
+  for (const cell of board.children) {
+    const x = Number(cell.dataset.x);
+    const y = Number(cell.dataset.y);
+    cell.hidden = x < left || x >= left + columns || y < top || y >= top + rows;
+  }
+}
 
 function message(text) { feedback.textContent = text; }
 function currentMap() { return showingDestination ? destination : placements; }
@@ -93,17 +120,19 @@ function render() {
     }
     cell.setAttribute('aria-pressed', String(active));
     cell.setAttribute('aria-label', `${Number(cell.dataset.y) + 1}행 ${Number(cell.dataset.x) + 1}열${active ? `, 칸 ${numbers.get(key)}번` : ''}${pack ? `, ${pack.name}, 높이 ${pack.height}cm, 팩 번호 ${pack.number ?? '미지정'}` : ''}`);
-    cell.disabled = !drawing && !(active && (mapping || (mode === 'numbering' && pack)));
+    cell.disabled = !drawing && !(active && (mapping || ((mode === 'numbering' || mode === 'destination-numbering') && pack)));
   }
   board.classList.toggle('finished', !drawing);
   toggle.textContent = drawing ? '파레트 그리기 종료' : '파레트 다시 그리기';
   toggle.setAttribute('aria-pressed', String(drawing));
   startMap.hidden = drawing || selected.size === 0;
   startMap.textContent = mode === 'start' ? '시작맵 만들기 종료' : '시작맵 만들기';
-  numberPacks.hidden = !placementComplete || drawing || mode === 'start';
+  numberPacks.hidden = !placementComplete || drawing || mode === 'start' || showingDestination;
   numberPacks.textContent = mode === 'numbering' ? '팩 번호 매기기 완료' : '팩 번호 매기기';
   destinationButton.hidden = !numberingComplete || drawing || mode === 'start' || mode === 'numbering';
   destinationButton.textContent = mode === 'destination' ? '도착맵 만들기 완료' : '도착맵 만들기';
+  destinationNumbers.hidden = !showingDestination || destination.size !== placements.size || mode === 'destination';
+  destinationNumbers.textContent = mode === 'destination-numbering' ? '도착맵 팩 번호 매기기 완료' : '도착맵 팩 번호 매기기';
   viewStart.hidden = !showingDestination;
   packPanel.hidden = !mapping;
   document.querySelector('#pack-panel h2').textContent = showingDestination ? '도착맵 만들기' : '시작맵 만들기';
@@ -112,16 +141,18 @@ function render() {
     option.querySelector('.remaining').textContent = showingDestination
       ? `남은 수량 ${remaining(packs.find(pack => pack.id === option.dataset.pack)).length}개` : '';
   }
-  const names = { drawing: '파레트 그리는 중', idle: showingDestination ? '도착맵 보기' : '시작맵 보기', start: '시작맵 배치 중', numbering: '팩 번호 매기는 중', destination: '도착맵 배치 중' };
+  const names = { drawing: '파레트 그리는 중', idle: showingDestination ? '도착맵 보기' : '시작맵 보기', start: '시작맵 배치 중', numbering: '팩 번호 매기는 중', destination: '도착맵 배치 중', 'destination-numbering': '도착맵 팩 번호 매기는 중' };
   status.textContent = `${names[mode]} · 파레트 ${selected.size}칸 · 팩 ${map.size}개`;
   const instructions = {
     drawing: '칸을 클릭해 그리거나 지울 수 있습니다. 빈칸도 번호에 포함됩니다.',
     start: '팩을 골라 배치하세요. 배치를 마치면 팩 번호를 매길 수 있습니다.',
     numbering: '팩을 클릭해 번호를 입력하세요. 모든 팩에 서로 다른 번호를 지정한 뒤 완료하세요.',
     destination: '시작맵의 팩을 옮겨 배치하세요. 종류·크기별 남은 수량만 사용할 수 있고 번호는 그대로 유지됩니다.',
+    'destination-numbering': '팩을 클릭해 같은 종류·크기의 시작맵 번호를 지정하세요. 이미 배치된 번호를 선택하면 두 팩의 번호가 교환됩니다.',
     idle: '시작맵 배치 → 팩 번호 매기기 → 도착맵 만들기 순서로 진행하세요.',
   };
   instruction.textContent = instructions[mode];
+  fitBoard();
 }
 
 board.addEventListener('click', event => {
@@ -139,8 +170,9 @@ board.addEventListener('click', event => {
     if (placements.get(key)?.id === chosenPack.id) placements.delete(key);
     else placements.set(key, { ...chosenPack, number: null });
     invalidate();
-  } else if (mode === 'numbering' && placements.has(key)) {
-    editingPack = placements.get(key);
+  } else if ((mode === 'numbering' || mode === 'destination-numbering') && currentMap().has(key)) {
+    editingKey = key;
+    editingPack = currentMap().get(key);
     input.value = editingPack.number ?? '';
     numberError.textContent = '';
     document.querySelector('#number-title').textContent = `${editingPack.name} 번호`;
@@ -196,6 +228,10 @@ destinationButton.addEventListener('click', () => {
   showingDestination = true;
   render();
 });
+destinationNumbers.addEventListener('click', () => {
+  mode = mode === 'destination-numbering' ? 'idle' : 'destination-numbering';
+  message(''); render();
+});
 viewStart.addEventListener('click', () => { mode = 'idle'; showingDestination = false; message(''); render(); });
 
 for (const digit of ['1','2','3','4','5','6','7','8','9','지우기','0','←']) {
@@ -215,6 +251,17 @@ document.querySelector('#number-form').addEventListener('submit', event => {
   const value = input.value.trim();
   if (!/^\d{1,6}$/.test(value)) { numberError.textContent = '0부터 999999까지의 정수를 입력해 주세요.'; return; }
   const number = Number(value);
+  if (mode === 'destination-numbering') {
+    const target = [...placements.values()].find(pack => pack.id === editingPack.id && pack.number === number);
+    if (!target) {
+      numberError.textContent = '시작맵에서 같은 종류·크기의 팩에 지정한 번호를 입력해 주세요.';
+      return;
+    }
+    const other = [...destination.entries()].find(([, pack]) => pack === target);
+    if (other) destination.set(other[0], editingPack);
+    destination.set(editingKey, target);
+    dialog.close(); render(); return;
+  }
   if ([...placements.values()].some(pack => pack !== editingPack && pack.number === number)) {
     numberError.textContent = '이미 사용 중인 번호입니다. 다른 번호를 입력해 주세요.'; return;
   }
@@ -224,3 +271,4 @@ document.querySelector('#number-form').addEventListener('submit', event => {
 });
 document.querySelector('#cancel-number').addEventListener('click', () => dialog.close());
 render();
+new ResizeObserver(fitBoard).observe(document.querySelector('.viewport'));
