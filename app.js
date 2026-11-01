@@ -48,6 +48,14 @@ let routePlan = null;
 let routeFinished = false;
 let dragStroke = null;
 let suppressDragClick = false;
+let cellKind = 'normal';
+const cellTools = document.querySelector('#cell-tools');
+cellTools.addEventListener('click', event => {
+  const button = event.target.closest('button[data-kind]');
+  if (!button) return;
+  cellKind = button.dataset.kind;
+  for (const option of cellTools.querySelectorAll('button')) option.setAttribute('aria-pressed', String(option === button));
+});
 const saveStatus = document.querySelector('#save-status');
 let saveTimer = null;
 let lastSaved = null;
@@ -291,7 +299,7 @@ for (const pack of packs) {
   option.className = 'pack-option';
   option.dataset.pack = pack.id;
   option.innerHTML = `${packPreview(pack)}<strong>${pack.name}</strong><span>${pack.shape === 'square' ? '밑면 2 × 2cm' : '지름 2cm'}</span><span>높이 ${pack.height}cm</span><span class="remaining"></span>`;
-  option.addEventListener('click', () => { chosenPack = pack; message(''); render(); });
+  option.addEventListener('click', () => { chosenPack = pack; cellKind = 'normal'; message(''); render(); });
   packOptions.append(option);
 }
 const fragment = document.createDocumentFragment();
@@ -308,6 +316,8 @@ for (let y = 0; y < 40; y++) {
 board.append(fragment);
 
 function render() {
+  cellTools.hidden = !['drawing', 'start', 'destination'].includes(mode);
+  for (const option of cellTools.querySelectorAll('button')) option.setAttribute('aria-pressed', String(option.dataset.kind === cellKind));
   for (const button of document.querySelectorAll('#layer-tabs button')) {
     button.setAttribute('aria-pressed', String(Number(button.dataset.layer) === activeLayer));
   }
@@ -333,8 +343,9 @@ function render() {
     const key = `${cell.dataset.x},${cell.dataset.y}`;
     const active = selected.has(key);
     const pack = map.get(key);
+    const kind = selected.get(key)?.kind;
     cell.classList.toggle('selected', active);
-    cell.classList.toggle('occupied', Boolean(pack));
+    cell.classList.toggle('occupied', Boolean(pack) || Boolean(kind));
     cell.classList.remove('moving-from');
     cell.classList.toggle('numbering-current', !dialog.hidden && key === editingKey);
     cell.textContent = '';
@@ -345,6 +356,13 @@ function render() {
       number.style.setProperty('--number-size', Math.min(0.52, 1.45 / String(numbers.get(key)).length));
       number.style.setProperty('--corner-size', Math.min(0.24, 0.9 / String(numbers.get(key)).length));
       cell.append(number);
+      if (kind) {
+        const special = document.createElement('span');
+        special.className = `special-cell ${kind}`;
+        special.textContent = kind === 'fixed' ? 'X' : 'H';
+        special.title = kind === 'fixed' ? '고정팩 · 이동 불가' : '홀 · 통과 가능, 배치 불가';
+        cell.append(special);
+      }
       if (pack) {
         const marker = document.createElement('span');
         marker.className = `pack-marker ${pack.shape}`;
@@ -361,6 +379,7 @@ function render() {
     cell.setAttribute('aria-pressed', String(active));
     cell.setAttribute('aria-label', `${Number(cell.dataset.y) + 1}행 ${Number(cell.dataset.x) + 1}열${active ? `, 칸 ${numbers.get(key)}번` : ''}${pack ? `, ${pack.name}, 높이 ${pack.height}cm, 팩 번호 ${pack.number ?? '미지정'}` : ''}`);
     cell.disabled = !drawing && !(active && (mapping || ((mode === 'numbering' || mode === 'destination-numbering') && pack)));
+    if (kind) cell.setAttribute('aria-label', `${cell.getAttribute('aria-label')}, ${kind === 'fixed' ? 'X 고정팩' : 'H 홀, 통과 가능 배치 불가'}`);
   }
   board.classList.toggle('finished', !drawing);
   toggle.textContent = drawing ? '파레트 그리기 종료' : '파레트 다시 그리기';
@@ -453,7 +472,7 @@ document.querySelector('#three-out').addEventListener('click', () => threeView?.
 
 board.addEventListener('pointerdown', event => {
   suppressDragClick = false;
-  if (mode !== 'drawing' || event.button !== 0 || !event.isPrimary) return;
+  if (mode !== 'drawing' || cellKind !== 'normal' || event.button !== 0 || !event.isPrimary) return;
   const cell = event.target.closest('.cell');
   if (!cell) return;
   dragStroke = {
@@ -508,6 +527,15 @@ board.addEventListener('click', event => {
   const y = Number(cell.dataset.y);
   const key = `${x},${y}`;
   message('');
+  if (['drawing', 'start', 'destination'].includes(mode) && cellKind !== 'normal') {
+    const previous = selected.get(key);
+    selected.set(key, previous?.kind === cellKind ? { x, y } : { x, y, kind: cellKind });
+    placements.delete(key); destination.delete(key);
+    invalidate(); render(); return;
+  }
+  if (mode !== 'drawing' && selected.get(key)?.kind && ['start', 'destination'].includes(mode)) {
+    message('X 고정팩과 H 홀에는 팩을 배치할 수 없습니다.'); return;
+  }
   if (mode === 'drawing') {
     if (selected.has(key)) { selected.delete(key); placements.delete(key); }
     else selected.set(key, { x, y });

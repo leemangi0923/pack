@@ -8,7 +8,8 @@ export function sceneModel(cells, placements, alignment = cells) {
   const minY = Math.min(...alignment.map(cell => cell.y));
   const maxY = Math.max(...alignment.map(cell => cell.y));
   const numbers = numberCells(cells);
-  return cells.map(({ x, y }) => ({
+  return cells.map(({ x, y, kind }) => ({
+    kind,
     key: `${x},${y}`, x: (x - (minX + maxX) / 2) * 4,
     z: (y - (minY + maxY) / 2) * 4,
     cellNumber: numbers.get(`${x},${y}`), pack: placements.get(`${x},${y}`) ?? null,

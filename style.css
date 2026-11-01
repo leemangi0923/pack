@@ -194,3 +194,9 @@ main:not([data-tool="none"]) { grid-template-columns: minmax(0, 1fr) 278px; }
 #layer-tabs button { min-height: 25px; padding: 5px 10px; border: 0; background: transparent; box-shadow: none; font-size: 11px; }
 #layer-tabs button[aria-pressed="true"] { background: white; color: var(--accent); box-shadow: 0 1px 4px #25304715; }
 @media(max-width:600px) { .details { flex-wrap: wrap; } #layer-tabs button { padding: 4px 9px; min-height: 23px; font-size: 10px; } }
+#cell-tools { padding: 3px; border: 1px solid var(--line); border-radius: 8px; gap: 3px; }
+#cell-tools button { box-shadow: none; border-color: transparent; }
+#cell-tools button[aria-pressed="true"] { background: #ece9ff; color: var(--accent); border-color: #d9d3ff; }
+.special-cell { position: absolute; left: 25%; top: 25%; width: 50%; height: 50%; display: grid; place-items: center; font: 700 calc(var(--cell-size) * .34)/1 system-ui; }
+.special-cell.fixed { background: #475569; color: white; }
+.special-cell.hole { border: 2px dashed #64748b; color: #64748b; background: #edf1f8; border-radius: 50%; }

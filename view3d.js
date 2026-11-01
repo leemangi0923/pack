@@ -96,7 +96,18 @@ export function create3DView(container) {
     })));
     positions = new Map(model.map(item => [item.key, item]));
     for (const item of model) {
-      const base = new THREE.Mesh(new THREE.BoxGeometry(4, 0.18, 4),
+      let baseGeometry = new THREE.BoxGeometry(4, 0.18, 4);
+      if (item.kind === 'hole') {
+        baseGeometry.dispose();
+        const shape = new THREE.Shape();
+        shape.moveTo(-2, -2); shape.lineTo(2, -2); shape.lineTo(2, 2); shape.lineTo(-2, 2); shape.closePath();
+        const hole = new THREE.Path();
+        hole.moveTo(-1, -1); hole.lineTo(-1, 1); hole.lineTo(1, 1); hole.lineTo(1, -1); hole.closePath();
+        shape.holes.push(hole);
+        baseGeometry = new THREE.ExtrudeGeometry(shape, { depth: 0.18, bevelEnabled: false });
+        baseGeometry.rotateX(Math.PI / 2); baseGeometry.translate(0, 0.09, 0);
+      }
+      const base = new THREE.Mesh(baseGeometry,
         new THREE.MeshStandardMaterial({ color: 0xe2e8f0, roughness: 0.9 }));
       base.position.set(item.x, item.elevation -0.09, item.z);
       group.add(base);
@@ -104,6 +115,12 @@ export function create3DView(container) {
         new THREE.LineBasicMaterial({ color: 0x475569 }));
       outline.position.copy(base.position);
       group.add(outline);
+      if (item.kind === 'fixed') {
+        const fixed = new THREE.Mesh(new THREE.BoxGeometry(2, 4, 2), new THREE.MeshStandardMaterial({ color: 0x475569 }));
+        fixed.position.set(item.x, item.elevation + 2, item.z); group.add(fixed);
+        const mark = new THREE.Mesh(new THREE.PlaneGeometry(1.8, .9), new THREE.MeshBasicMaterial({ map: label('X', '#fff', true), transparent: true }));
+        mark.rotation.x = -Math.PI / 2; mark.position.set(item.x, item.elevation + 4.01, item.z); group.add(mark);
+      }
       if (item.pack) {
         const pack = item.pack;
         const geometry = pack.shape === 'square'
@@ -127,9 +144,10 @@ export function create3DView(container) {
       }
       // Keep floor numbers under occupied packs so moving away reveals the source.
       const number = new THREE.Mesh(new THREE.PlaneGeometry(2.8, 1.4),
-        new THREE.MeshBasicMaterial({ map: label(item.cellNumber, '#475569') }));
+        new THREE.MeshBasicMaterial({ map: label(item.kind === 'hole' ? `${item.cellNumber} H` : item.cellNumber, '#475569') }));
       number.rotation.x = -Math.PI / 2;
       number.position.set(item.x, item.elevation + 0.01, item.z);
+      if (item.kind === 'hole') { number.scale.setScalar(.55); number.position.z += 1.5; }
       group.add(number);
     }
     const bounds = new THREE.Box3().setFromObject(group);

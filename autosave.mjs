@@ -9,7 +9,7 @@ export function encodeWorkspace(state) {
   const identities = new Map(source.map(([, pack], index) => [pack, index]));
   return JSON.stringify({
     schema: 1,
-    cells: [...state.selected.values()].map(({ x, y }) => [x, y]),
+    cells: [...state.selected.values()].map(({ x, y, kind }) => kind ? [x, y, kind] : [x, y]),
     packs: source.map(([key, pack]) => [key, pack.id, pack.number]),
     destination: [...state.destination].map(([key, pack]) => [key, identities.get(pack)]),
     mode: state.mode, showingDestination: state.showingDestination,
@@ -25,9 +25,10 @@ export function decodeWorkspace(text) {
   check(data && data.schema === 1 && Array.isArray(data.cells) && data.cells.length <= 1600);
   const selected = new Map();
   for (const cell of data.cells) {
-    check(Array.isArray(cell) && cell.length === 2 && cell.every(n => Number.isInteger(n) && n >= 0 && n < 40));
+    check(Array.isArray(cell) && (cell.length === 2 || cell.length === 3) && cell.slice(0, 2).every(n => Number.isInteger(n) && n >= 0 && n < 40));
+    check(cell.length === 2 || ['fixed', 'hole'].includes(cell[2]));
     const [x, y] = cell;
-    check(!selected.has(`${x},${y}`)); selected.set(`${x},${y}`, { x, y });
+    check(!selected.has(`${x},${y}`)); selected.set(`${x},${y}`, cell.length === 3 ? { x, y, kind: cell[2] } : { x, y });
   }
   check(Array.isArray(data.packs) && data.packs.length <= selected.size);
   const placements = new Map(), identities = [];
@@ -35,7 +36,7 @@ export function decodeWorkspace(text) {
     check(Array.isArray(record) && record.length === 3);
     const [key, id, number] = record;
     const type = packs.find(pack => pack.id === id);
-    check(selected.has(key) && !placements.has(key) && type);
+    check(selected.has(key) && !selected.get(key).kind && !placements.has(key) && type);
     check(number === null || parsePackLabel(number) === number);
     const pack = { ...type, number };
     placements.set(key, pack); identities.push(pack);
@@ -45,7 +46,7 @@ export function decodeWorkspace(text) {
   for (const record of data.destination) {
     check(Array.isArray(record) && record.length === 2);
     const [key, index] = record;
-    check(selected.has(key) && !destination.has(key) && Number.isInteger(index) && identities[index] && !used.has(index));
+    check(selected.has(key) && !selected.get(key).kind && !destination.has(key) && Number.isInteger(index) && identities[index] && !used.has(index));
     destination.set(key, identities[index]); used.add(index);
   }
   check(modes.includes(data.mode) && typeof data.showingDestination === 'boolean');
