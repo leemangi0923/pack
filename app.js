@@ -232,12 +232,15 @@ function render() {
       const number = document.createElement('span');
       number.className = 'cell-number';
       number.textContent = numbers.get(key);
+      number.style.setProperty('--number-size', Math.min(0.52, 1.45 / String(numbers.get(key)).length));
+      number.style.setProperty('--corner-size', Math.min(0.24, 0.9 / String(numbers.get(key)).length));
       cell.append(number);
       if (pack) {
         const marker = document.createElement('span');
         marker.className = `pack-marker ${pack.shape}`;
         const label = document.createElement('span');
         label.textContent = pack.number ?? pack.size;
+        label.style.setProperty('--pack-label-size', Math.min(0.34, 0.7 / String(pack.number ?? pack.size).length));
         const size = document.createElement('small');
         size.textContent = pack.number === null ? '' : pack.size;
         marker.append(label, size);

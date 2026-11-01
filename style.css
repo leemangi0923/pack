@@ -50,9 +50,10 @@ button:focus-visible, input:focus-visible { outline: 3px solid #407ee7; outline-
 .pack-marker.circle { border-radius: 50%; }
 .pack-marker.square { background: #dc2626; border-color: #dc2626; color: white; }
 .pack-marker small { position: absolute; right: 1px; bottom: 0; font-size: calc(var(--cell-size) * .14); }
-.pack-marker > span { max-width: 100%; overflow-wrap: anywhere; font-size: calc(var(--cell-size) * .21); }
-.occupied .cell-number { position: absolute; left: 3px; top: 1px; font-size: calc(var(--cell-size) * .17); z-index: 2; }
-.occupied.moving-from .cell-number { position: static; font-size: calc(var(--cell-size) * .4); }
+.cell-number { font-size: calc(var(--cell-size) * var(--number-size, .52)); font-weight: 700; }
+.pack-marker > span { max-width: 100%; white-space: nowrap; font-size: calc(var(--cell-size) * var(--pack-label-size, .34)); font-weight: 700; }
+.occupied .cell-number { position: absolute; left: 3px; top: 1px; font-size: calc(var(--cell-size) * var(--corner-size, .24)); z-index: 2; }
+.occupied.moving-from .cell-number { position: static; font-size: calc(var(--cell-size) * var(--number-size, .52)); }
 .board.finished .cell:enabled { cursor: pointer; }
 #pack-number { display: block; width: 100%; margin: 10px 0; padding: 8px; font: 24px system-ui; }
 #number-error { color: #b91c1c; font-size: 13px; }

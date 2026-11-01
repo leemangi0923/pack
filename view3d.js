@@ -61,16 +61,16 @@ export function create3DView(container) {
   new ResizeObserver(resize).observe(container);
   function label(text, color, transparent = false) {
     const canvas = document.createElement('canvas');
-    canvas.width = 256; canvas.height = 128;
+    canvas.width = 512; canvas.height = 256;
     const context = canvas.getContext('2d');
     if (!transparent) {
       context.fillStyle = 'rgba(255,255,255,.94)';
-      context.fillRect(0, 0, 256, 128);
+      context.fillRect(0, 0, 512, 256);
     }
     context.fillStyle = color;
-    context.font = 'bold 64px system-ui';
+    context.font = 'bold 180px system-ui';
     context.textAlign = 'center'; context.textBaseline = 'middle';
-    context.fillText(String(text), 128, 64, 240);
+    context.fillText(String(text), 256, 128, 480);
     const texture = new THREE.CanvasTexture(canvas);
     texture.colorSpace = THREE.SRGBColorSpace;
     return texture;
@@ -111,7 +111,7 @@ export function create3DView(container) {
         }));
         mesh.position.set(item.x, pack.height / 2, item.z);
         group.add(mesh);
-        const inscription = new THREE.Mesh(new THREE.PlaneGeometry(1.65, 0.82),
+        const inscription = new THREE.Mesh(new THREE.PlaneGeometry(1.8, 0.9),
           new THREE.MeshBasicMaterial({
             map: label(pack.number ?? pack.size, '#ffffff', true),
             transparent: true, depthWrite: false, polygonOffset: true,
@@ -123,7 +123,7 @@ export function create3DView(container) {
         movingPacks.set(item.key, { mesh, inscription });
       }
       // Keep floor numbers under occupied packs so moving away reveals the source.
-      const number = new THREE.Mesh(new THREE.PlaneGeometry(1.3, 0.65),
+      const number = new THREE.Mesh(new THREE.PlaneGeometry(2.8, 1.4),
         new THREE.MeshBasicMaterial({ map: label(item.cellNumber, '#475569') }));
       number.rotation.x = -Math.PI / 2;
       number.position.set(item.x, 0.01, item.z);
