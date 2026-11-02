@@ -95,7 +95,7 @@ export function create3DView(container) {
       ...item, key: `${item.key},${layer.level}`, level: layer.level, elevation: 0,
     })));
     positions = new Map(model.map(item => [item.key, item]));
-    stackScene(model);
+    stackScene(model, layers.every(layer => Number.isFinite(layer.elevation)) ? layers.map(layer => layer.elevation) : undefined);
     for (const item of model) {
       const baseGeometry = item.level > 0 ? new THREE.PlaneGeometry(4, 4) : new THREE.BoxGeometry(4, 0.18, 4);
       const base = new THREE.Mesh(baseGeometry,
@@ -182,7 +182,7 @@ export function create3DView(container) {
     const moving = movingPacks.get(from);
     const start = positions.get(from), end = positions.get(to);
     if (!moving || !start || !end) return;
-    const endElevation = end.elevation - (start.x === end.x && start.z === end.z && end.level > start.level ? moving.mesh.geometry.parameters.height : 0);
+    const endElevation = end.elevation;
     for (const object of [moving.mesh, moving.inscription]) {
       object.position.x = THREE.MathUtils.lerp(start.x, end.x, progress);
       object.position.z = THREE.MathUtils.lerp(start.z, end.z, progress);

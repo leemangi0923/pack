@@ -1,4 +1,5 @@
 import { numberCells, layerOffsets } from './numbering.mjs';
+import { layerElevations } from './scene-model.mjs';
 
 export function prepareRoutes(text, cells, startMap, offset = 0) {
   let routes;
@@ -13,8 +14,8 @@ export function prepareRoutes(text, cells, startMap, offset = 0) {
   const positions = multi ? new Map(groups.flatMap((group,level)=>[...numberCells(group,offsets[level])].map(([key,number])=>[number,`${key},${level}`]))) : new Map([...numberCells(cells,offset)].map(([key,number])=>[number,key]));
   const kinds=new Map(cells.map(c=>[keyOf(c),c.kind]));
   const result = new Map(startMap);
-  const baseHeight = (x,y,level,state) => cells.filter(c=>c.x===x&&c.y===y&&(c.level??0)<level)
-    .reduce((height,c)=>height+(state.get(keyOf(c))?.height??(['fixed','fixed-circle'].includes(c.kind)?6:0)),0);
+  const elevations = layerElevations([0,1,2].map(level=>({cells:cells.filter(c=>(c.level??0)===level),placements:new Map([...startMap].filter(([key])=>(Number(key.split(',')[2])||0)===level))})));
+  const baseHeight = (x,y,level) => elevations[level];
   const steps = [];
   let total = 0;
   for (const [index, route] of routes.entries()) {

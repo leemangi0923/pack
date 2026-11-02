@@ -1,4 +1,4 @@
-export function createRoutePlayer({ onFrame, onStep, onComplete, onState }) {
+export function createRoutePlayer({ onFrame, onStep, onComplete, onState, onSeek = () => {} }) {
   let steps = [], index = 0, progress = 0, previous = null, frame = null, running = false;
   function tick(time) {
     if (!running) return;
@@ -8,6 +8,7 @@ export function createRoutePlayer({ onFrame, onStep, onComplete, onState }) {
     if (progress >= 1) {
       onStep(steps[index], index);
       index++; progress = 0;
+      onState(running);
       if (index === steps.length) {
         running = false; frame = null; previous = null;
         onState(false); onComplete(); return;
@@ -20,6 +21,14 @@ export function createRoutePlayer({ onFrame, onStep, onComplete, onState }) {
     if (frame !== null) cancelAnimationFrame(frame);
     frame = null; onState(false);
   }
+  function seek(target) {
+    pause();
+    const next = Math.max(0, Math.min(steps.length, target));
+    if (next === index && progress === 0) return;
+    index = next; progress = 0;
+    onSeek(index, steps); onState(false);
+    if (steps.length && index === steps.length) onComplete();
+  }
   return {
     load(nextSteps) { pause(); steps = nextSteps; index = 0; progress = 0; },
     play() {
@@ -27,6 +36,11 @@ export function createRoutePlayer({ onFrame, onStep, onComplete, onState }) {
       running = true; previous = null; onState(true); frame = requestAnimationFrame(tick);
     },
     pause,
+    next() { seek(index + 1); },
+    back() { seek(progress > 0 ? index : index - 1); },
+    get position() { return index; },
+    get progress() { return progress; },
+    get length() { return steps.length; },
     reset() { pause(); steps = []; index = 0; progress = 0; },
     get running() { return running; },
   };

@@ -32,3 +32,19 @@ test('animation pauses without consuming time, completes once, and cancels on re
   assert.deepEqual(finished, ['first', 'second']);
   assert.equal(completed, 1);
 });
+
+test('previous and next seek to exact boundaries and resume from the inspected step', t => {
+ const scheduled=new Map();let id=0;
+ globalThis.requestAnimationFrame=fn=>{scheduled.set(++id,fn);return id};
+ globalThis.cancelAnimationFrame=id=>scheduled.delete(id);
+ t.after(()=>{delete globalThis.requestAnimationFrame;delete globalThis.cancelAnimationFrame});
+ const seeks=[],completed=[];
+ const player=createRoutePlayer({onFrame:()=>{},onStep:()=>{},onComplete:()=>completed.push(true),onState:()=>{},onSeek:n=>seeks.push(n)});
+ player.load(['a','b','c']);player.next();player.next();player.back();
+ assert.equal(player.position,1);assert.deepEqual(seeks,[1,2,1]);
+ player.play();assert.equal(scheduled.size,1);player.back();assert.equal(scheduled.size,0);
+ assert.equal(player.position,0);player.back();assert.equal(player.position,0);
+ player.next();player.next();player.next();assert.equal(player.position,3);
+ player.next();assert.equal(player.position,3);player.back();assert.equal(player.position,2);
+ player.play();assert.equal(scheduled.size,1);player.reset();assert.equal(scheduled.size,0);
+});

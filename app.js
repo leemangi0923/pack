@@ -7,6 +7,7 @@ import { createRoutePlayer } from './route-player.mjs';
 import { SAVE_KEY } from './autosave.mjs';
 import { encodeUnified, decodeUnified, placeKey } from './unified-workspace.mjs';
 import { importMaps } from './map-import.mjs';
+import { layerElevations } from './scene-model.mjs';
 
 const board = document.querySelector('#board');
 const toggle = document.querySelector('#toggle');
@@ -44,6 +45,9 @@ const routePanel = document.querySelector('#route-panel');
 const routeInput = document.querySelector('#route-input');
 const routeProgress = document.querySelector('#route-progress');
 const pauseRoute = document.querySelector('#route-pause');
+const previousStep = document.querySelector('#route-previous');
+const nextStep = document.querySelector('#route-next');
+let routePlanText = '';
 let routeOpen = false;
 let playbackMap = null;
 let routePlan = null;
@@ -173,6 +177,15 @@ function restoreWorkspace(text) {
   }
 }
 const routePlayer = createRoutePlayer({
+  onSeek(count, steps) {
+    playbackMap = new Map(placements);
+    for (const step of steps.slice(0,count)) { playbackMap.delete(step.from); playbackMap.set(step.to,step.pack); }
+    routeFinished = count === steps.length && count > 0;
+    if (!showing3D && steps.length) showLayer(Number((count ? steps[count-1].to : steps[0].from).split(',')[2]));
+    render();
+    const step = steps[count-1];
+    routeProgress.textContent = count ? `이동 ${count}/${steps.length} · 경로 ${step.route+1} · ${step.fromNumber} → ${step.toNumber}` : `시작 상태 · 이동 0/${steps.length}`;
+  },
   onFrame(step, progress, index) {
     const [fx, fy, fl] = step.from.split(',').map(Number);
     const tl=Number(step.to.split(',')[2]);
@@ -198,19 +211,34 @@ const routePlayer = createRoutePlayer({
     routeFinished = true;
     pauseRoute.disabled = true;
     const matches = destination.size && destination.size === playbackMap.size && [...destination].every(([key, pack]) => playbackMap.get(key) === pack);
-    routeProgress.textContent = `모든 경로 이동 완료${destination.size ? matches ? ' · 도착맵과 일치합니다.' : ' · 결과가 도착맵과 다릅니다.' : ''}`;
+    routeProgress.textContent = `모든 경로 이동 완료 · 이동 ${routePlan.steps.length}/${routePlan.steps.length}${destination.size ? matches ? ' · 도착맵과 일치합니다.' : ' · 결과가 도착맵과 다릅니다.' : ''}`;
   },
   onState(running) {
+    previousStep.disabled = !routePlan || (routePlayer.position === 0 && routePlayer.progress === 0 && !running);
+    nextStep.disabled = !!routePlan && routePlayer.position >= routePlayer.length;
     pauseRoute.disabled = !routePlan || routeFinished;
     pauseRoute.textContent = running ? '일시정지' : '이어서 재생';
     routeInput.disabled = running;
   },
 });
+for (const [button, direction] of [[previousStep, 'back'], [nextStep, 'next']]) {
+  button.addEventListener('click', () => {
+    try {
+      if (!routePlan || routeInput.value !== routePlanText) {
+        const plan = prepareRoutes(routeInput.value, allCells(), placements);
+        routePlayer.reset(); routePlan = plan; routePlanText = routeInput.value;
+        routeFinished = false; playbackMap = new Map(placements); routePlayer.load(plan.steps);
+      }
+      message(''); routePlayer[direction]();
+    } catch (error) { message(error.message); }
+  });
+}
 
 function closeRoutes() {
   routePlayer.reset();
   routeOpen = false; playbackMap = null; routePlan = null; routeFinished = false;
   routeInput.disabled = false; pauseRoute.disabled = true;
+  previousStep.disabled = true; nextStep.disabled = false;
   routeProgress.textContent = '시작맵에서 재생합니다. 시작맵·도착맵 원본은 유지됩니다.';
 }
 addRoute.addEventListener('click', () => {
@@ -221,7 +249,7 @@ addRoute.addEventListener('click', () => {
 document.querySelector('#route-play').addEventListener('click', () => {
   try {
     const plan = prepareRoutes(routeInput.value, allCells(), placements);
-    routePlayer.reset(); routePlan = plan; routeFinished = false; playbackMap = new Map(placements);
+    routePlayer.reset(); routePlan = plan; routePlanText = routeInput.value; routeFinished = false; playbackMap = new Map(placements);
     message(''); render(); routePlayer.load(plan.steps); routePlayer.play();
   } catch (error) { message(error.message); }
 });
@@ -231,6 +259,7 @@ pauseRoute.addEventListener('click', () => {
 document.querySelector('#route-reset').addEventListener('click', () => {
   routePlayer.reset(); routePlan = null; routeFinished = false; playbackMap = new Map(placements);
   pauseRoute.disabled = true; routeInput.disabled = false;
+  previousStep.disabled = true; nextStep.disabled = false;
   routeProgress.textContent = '시작 위치로 돌아왔습니다. 입력 완료 · 재생을 눌러 다시 시작하세요.';
   render();
 });
@@ -467,7 +496,9 @@ function render() {
   if (replacePacks) instruction.textContent = '종류·크기를 고르고 팩을 클릭하세요. 번호와 도착맵의 같은 팩도 함께 유지됩니다.';
   if (showing3D) {
     instruction.textContent = `${showingDestination ? '도착맵' : '시작맵'} 3D 보기 · 사각팩 2×2cm / 원형팩 지름 2cm · 높이 소 4, 중 5, 대 6cm`;
-    const layers = allLayers().map((layer,index)=>({cells:layer?[...layer.values()]:[],placements:localPacks(currentMap(),index),level:index,offset:offsets[index],active:true}));
+    const sourceLayers = allLayers().map((layer,index)=>({cells:layer?[...layer.values()]:[],placements:localPacks(placements,index)}));
+    const elevations = layerElevations(sourceLayers);
+    const layers = allLayers().map((layer,index)=>({cells:layer?[...layer.values()]:[],placements:localPacks(currentMap(),index),level:index,offset:offsets[index],elevation:elevations[index],active:true}));
     threeView.setData([...selected.values()], currentMap(), { preserveView: routeOpen, layers });
   }
   fitBoard();
@@ -478,7 +509,15 @@ view3DButton.addEventListener('click', async () => {
   if (routePlayer.running) routePlayer.pause();
   if (threeLoading) return;
   message('');
-  if (showing3D) { showing3D = false; render(); return; }
+  if (showing3D) {
+    showing3D = false;
+    if (routePlan) {
+      const count = routePlayer.position;
+      const key = count ? routePlan.steps[count-1].to : routePlan.steps[0].from;
+      showLayer(Number(key.split(',')[2]));
+    }
+    render(); return;
+  }
   if (!threeView) {
     threeLoading = true;
     view3DButton.disabled = true;
@@ -699,6 +738,7 @@ initialWorkspaceText = workspaceText();
 loadPrevious.addEventListener('click', () => restoreWorkspace(previousWorkspaceText));
 render();
 routeInput.addEventListener('input', scheduleSave);
+routeInput.addEventListener('input', () => { nextStep.disabled = false; });
 input.addEventListener('input', scheduleSave);
 document.querySelector('#keypad').addEventListener('click', scheduleSave);
 document.querySelector('#symbol-keypad').addEventListener('click', scheduleSave);

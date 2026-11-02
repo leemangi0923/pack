@@ -1,12 +1,23 @@
 import { numberCells } from './numbering.mjs';
 
-export function stackScene(model) {
-  const tops = new Map();
+export function layerElevations(layers) {
+  let elevation = 0;
+  return layers.map(layer => {
+    const base = elevation;
+    const heights = [...layer.placements.values()].map(pack => pack.height);
+    if (layer.cells.some(cell => ['fixed', 'fixed-circle'].includes(cell.kind))) heights.push(6);
+    elevation += heights.length ? Math.max(...heights) : 6;
+    return base;
+  });
+}
+
+export function stackScene(model, elevations) {
+  elevations ??= layerElevations([0, 1, 2].map(level => ({
+    cells: model.filter(item => (item.level ?? 0) === level),
+    placements: new Map(model.filter(item => (item.level ?? 0) === level && item.pack).map((item, i) => [i, item.pack])),
+  })));
   for (const item of model) {
-    const column = `${item.x},${item.z}`;
-    item.elevation = tops.get(column) ?? 0;
-    const height = item.pack?.height ?? (['fixed', 'fixed-circle'].includes(item.kind) ? 6 : 0);
-    tops.set(column, item.elevation + height);
+    item.elevation = elevations[item.level ?? 0];
   }
   return model;
 }
