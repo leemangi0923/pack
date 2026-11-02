@@ -1,4 +1,4 @@
-import { numberCells } from './numbering.mjs';
+import { numberCells, layerOffsets } from './numbering.mjs';
 
 export function prepareRoutes(text, cells, startMap, offset = 0) {
   let routes;
@@ -6,8 +6,12 @@ export function prepareRoutes(text, cells, startMap, offset = 0) {
   if (!Array.isArray(routes) || !routes.length || routes.length > 1000) {
     throw new Error('경로는 1개 이상, 1000개 이하로 입력해 주세요.');
   }
-  const positions = new Map([...numberCells(cells, offset)].map(([key, number]) => [number, key]));
-  const kinds = new Map(cells.map(cell => [`${cell.x},${cell.y}`, cell.kind]));
+  const multi=cells.some(c=>c.level!==undefined);
+  const groups=[0,1,2].map(level=>cells.filter(c=>c.level===level));
+  const offsets=layerOffsets(groups);
+  const keyOf=c=>multi?`${c.x},${c.y},${c.level}`:`${c.x},${c.y}`;
+  const positions = multi ? new Map(groups.flatMap((group,level)=>[...numberCells(group,offsets[level])].map(([key,number])=>[number,`${key},${level}`]))) : new Map([...numberCells(cells,offset)].map(([key,number])=>[number,key]));
+  const kinds=new Map(cells.map(c=>[keyOf(c),c.kind]));
   const result = new Map(startMap);
   const steps = [];
   let total = 0;
@@ -32,6 +36,16 @@ export function prepareRoutes(text, cells, startMap, offset = 0) {
       const start = from.split(',').map(Number), end = to.split(',').map(Number);
       for (const cell of cells.filter(cell => ['fixed', 'fixed-circle'].includes(cell.kind))) {
         let enter = 0, leave = 1;
+        const levelFrom=start[2]??0,levelTo=end[2]??0;
+        if (levelFrom!==levelTo) {
+          let lo=0,hi=1;
+          const a=[start[0]*4,levelFrom*8+pack.height/2,start[1]*4],b=[end[0]*4,levelTo*8+pack.height/2,end[1]*4];
+          const mid=[cell.x*4,(cell.level??0)*8+3,cell.y*4],radius=[2,(6+pack.height)/2,2];
+          for(let j=0;j<3;j++){const d=b[j]-a[j];if(!d){if(Math.abs(a[j]-mid[j])>=radius[j])hi=-1;}else{const t1=(mid[j]-radius[j]-a[j])/d,t2=(mid[j]+radius[j]-a[j])/d;lo=Math.max(lo,Math.min(t1,t2));hi=Math.min(hi,Math.max(t1,t2));}}
+          if(lo<hi)throw new Error('층간 이동 구간에 X 고정팩이 있습니다. 우회 경유지를 추가해 주세요.');
+          continue;
+        }
+        if((cell.level??0)!==levelFrom)continue;
         for (const [axis, center] of [[0, cell.x], [1, cell.y]]) {
           const delta = end[axis] - start[axis];
           if (delta === 0) { if (Math.abs(start[axis] - center) >= .5) { leave = -1; break; } }

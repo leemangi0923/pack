@@ -92,7 +92,7 @@ export function create3DView(container) {
     movingPacks.clear();
     const alignment = layers.flatMap(layer => layer.cells);
     const model = layers.flatMap(layer => sceneModel(layer.cells, layer.placements, alignment, layer.offset ?? 0).map(item => ({
-      ...item, key: layer.active ? item.key : `${layer.level}:${item.key}`, elevation: layer.level * 8,
+      ...item, key: `${item.key},${layer.level}`, elevation: layer.level * 8,
     })));
     positions = new Map(model.map(item => [item.key, item]));
     for (const item of model) {
@@ -180,6 +180,7 @@ export function create3DView(container) {
     for (const object of [moving.mesh, moving.inscription]) {
       object.position.x = THREE.MathUtils.lerp(start.x, end.x, progress);
       object.position.z = THREE.MathUtils.lerp(start.z, end.z, progress);
+      object.position.y = THREE.MathUtils.lerp(start.elevation, end.elevation, progress) + (object === moving.mesh ? moving.mesh.geometry.parameters.height / 2 : moving.mesh.geometry.parameters.height + 0.005);
     }
     draw();
   }

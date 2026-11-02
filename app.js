@@ -4,7 +4,8 @@ import { nextPackKey } from './pack-order.mjs';
 import { parsePackLabel, symbolLabels } from './pack-labels.mjs';
 import { prepareRoutes } from './routes.mjs';
 import { createRoutePlayer } from './route-player.mjs';
-import { SAVE_KEY, encodeWorkspace, decodeWorkspace } from './autosave.mjs';
+import { SAVE_KEY } from './autosave.mjs';
+import { encodeUnified, decodeUnified, placeKey } from './unified-workspace.mjs';
 
 const board = document.querySelector('#board');
 const toggle = document.querySelector('#toggle');
@@ -61,59 +62,30 @@ let saveTimer = null;
 let lastSaved = null;
 let activeLayer = 0;
 let layerSnapshots = [null, null, null];
-function layerCells() {
-  return layerSnapshots.map((snapshot, index) => index === activeLayer ? [...selected.values()]
-    : snapshot ? [...decodeWorkspace(snapshot).selected.values()] : []);
+function allLayers() {
+  return layerSnapshots.map((layer,index)=>index===activeLayer?selected:layer);
 }
-function numberingOffset() { return layerOffsets(layerCells())[activeLayer]; }
-
-function currentLayerText() {
-  return encodeWorkspace({
-    selected, placements, destination, mode, showingDestination, placementComplete,
-    numberingComplete, chosenPack, routeText: routeInput.value,
-    numberDraft: editingKey === null ? null : { key: editingKey, value: input.value },
-  });
+function layerCells() { return allLayers().map(layer=>layer?[...layer.values()]:[]); }
+function allCells() { return layerCells().flatMap((cells,level)=>cells.map(cell=>({...cell,level}))); }
+function localPacks(map,level) { return new Map([...map].filter(([key])=>Number(key.split(',')[2])===level).map(([key,p])=>[key.split(',').slice(0,2).join(','),p])); }
+function showLayer(next) {
+  finishStroke(); layerSnapshots[activeLayer]=new Map(selected); activeLayer=next;
+  let layer=layerSnapshots[next];
+  if(!layer){
+    layer=new Map([...(layerSnapshots[next-1]??selected)].map(([key,{x,y}])=>[key,{x,y}]));
+    layerSnapshots[next]=layer;
+  }
+  selected.clear();for(const[k,c]of layer)selected.set(k,{...c});
 }
 function workspaceText() {
-  const layers = [...layerSnapshots];
-  layers[activeLayer] = currentLayerText();
-  return JSON.stringify({ schema: 2, activeLayer, layers });
+ return encodeUnified({activeLayer,layers:allLayers(),placements,destination,mode,showingDestination,
+  placementComplete,numberingComplete,chosenPack,routeText:routeInput.value,
+  numberDraft:editingKey===null?null:{key:editingKey,value:input.value}});
 }
-function applyLayer(restored) {
-  editingKey = null; editingPack = null;
-  for (const [target, source] of [[selected, restored.selected], [placements, restored.placements], [destination, restored.destination]]) {
-    target.clear(); for (const [key, value] of source) target.set(key, value);
-  }
-  mode = restored.mode; showingDestination = restored.showingDestination;
-  placementComplete = restored.placementComplete; numberingComplete = restored.numberingComplete;
-  chosenPack = restored.chosenPack; routeInput.value = restored.routeText;
-  if (restored.numberDraft) {
-    editingKey = restored.numberDraft.key; editingPack = currentMap().get(editingKey);
-    input.value = restored.numberDraft.value;
-    document.querySelector('#number-title').textContent = `${editingPack.name} 번호`;
-    const [x, y] = editingKey.split(',').map(Number);
-    document.querySelector('#number-position').textContent = `${y + 1}행 ${x + 1}열 · 저장하면 다음 팩으로 이동`;
-  }
-}
-document.querySelector('#layer-tabs').addEventListener('click', event => {
-  const button = event.target.closest('button[data-layer]');
-  if (!button) return;
-  const next = Number(button.dataset.layer);
-  if (next === activeLayer) return;
-  finishStroke();
-  layerSnapshots[activeLayer] = currentLayerText();
-  closeRoutes(); showing3D = false;
-  cellKind = 'normal';
-  activeLayer = next;
-  const below = next > 0 && layerSnapshots[next - 1] ? decodeWorkspace(layerSnapshots[next - 1]).selected : new Map();
-  const copied = new Map([...below].map(([key, { x, y }]) => [key, { x, y }]));
-  const fresh = encodeWorkspace({
-    selected: copied.size ? copied : new Map([['5,3', { x: 5, y: 3 }]]), placements: new Map(), destination: new Map(),
-    mode: copied.size ? 'idle' : 'drawing', showingDestination: false, placementComplete: false, numberingComplete: false,
-    chosenPack: packs[0], routeText: '', numberDraft: null,
-  });
-  applyLayer(decodeWorkspace(layerSnapshots[next] ?? fresh));
-  message(''); render();
+document.querySelector('#layer-tabs').addEventListener('click',event=>{
+ const button=event.target.closest('button[data-layer]');if(!button||button.disabled)return;
+ const next=Number(button.dataset.layer);if(next===activeLayer)return;
+ showLayer(next);editingKey=null;editingPack=null;cellKind='normal';message('');render();
 });
 function saveWorkspace() {
   clearTimeout(saveTimer);
@@ -139,27 +111,20 @@ function restoreWorkspace() {
     const text = localStorage.getItem(SAVE_KEY);
     if (text === null) return;
     let restored;
-    try {
-      const saved = JSON.parse(text);
-      if (saved.schema === 2) {
-        if (!Array.isArray(saved.layers) || saved.layers.length !== 3 || !Number.isInteger(saved.activeLayer) || saved.activeLayer < 0 || saved.activeLayer > 2 || typeof saved.layers[saved.activeLayer] !== 'string') throw new Error('Invalid layers');
-        saved.layers.forEach(layer => { if (layer !== null) decodeWorkspace(layer); });
-        layerSnapshots = saved.layers; activeLayer = saved.activeLayer;
-        restored = decodeWorkspace(saved.layers[activeLayer]);
-      } else restored = decodeWorkspace(text);
-    }
-    catch {
-      localStorage.setItem(`${SAVE_KEY}.backup`, text);
-      message('저장 데이터를 복원하지 못했습니다. 기존 데이터는 브라우저에 백업하고 새 작업을 시작합니다.');
-      return;
-    }
-    applyLayer(restored);
-    if (restored.numberDraft) {
-      editingKey = restored.numberDraft.key; editingPack = currentMap().get(editingKey);
-      input.value = restored.numberDraft.value;
-      document.querySelector('#number-title').textContent = `${editingPack.name} 번호`;
-      const [x, y] = editingKey.split(',').map(Number);
-      document.querySelector('#number-position').textContent = `${y + 1}행 ${x + 1}열 · 저장하면 다음 팩으로 이동`;
+    try { restored=decodeUnified(text); }
+    catch {localStorage.setItem(`${SAVE_KEY}.backup`,text);message('저장 데이터를 복원하지 못했습니다. 기존 데이터는 백업했습니다.');return;}
+    activeLayer=restored.activeLayer;layerSnapshots=restored.layers;
+    selected.clear();for(const[k,c]of restored.layers[activeLayer])selected.set(k,c);
+    placements.clear();for(const[k,p]of restored.placements)placements.set(k,p);
+    destination.clear();for(const[k,p]of restored.destination)destination.set(k,p);
+    mode=restored.mode;showingDestination=restored.showingDestination;
+    placementComplete=restored.placementComplete;numberingComplete=restored.numberingComplete;
+    chosenPack=restored.chosenPack;routeInput.value=restored.routeText;
+    if(restored.numberDraft){
+      editingKey=restored.numberDraft.key;editingPack=currentMap().get(editingKey);input.value=restored.numberDraft.value;
+      document.querySelector('#number-title').textContent=`${editingPack.name} 번호`;
+      const [x,y,level]=editingKey.split(',').map(Number);
+      document.querySelector('#number-position').textContent=`${level+1}층 · ${y+1}행 ${x+1}열 · 저장하면 다음 팩으로 이동`;
     }
     lastSaved = text;
     saveStatus.textContent = '자동 저장 복원됨';
@@ -169,20 +134,24 @@ function restoreWorkspace() {
 }
 const routePlayer = createRoutePlayer({
   onFrame(step, progress, index) {
-    const [fx, fy] = step.from.split(',').map(Number);
+    const [fx, fy, fl] = step.from.split(',').map(Number);
+    const tl=Number(step.to.split(',')[2]);
+    if (!showing3D && activeLayer!==fl) { showLayer(fl);render(); }
     const [tx, ty] = step.to.split(',').map(Number);
     const marker = board.querySelector(`[data-x="${fx}"][data-y="${fy}"] .pack-marker`);
     marker?.parentElement.classList.toggle('moving-from', step.from !== step.to && progress > 0);
     const cellSize = parseFloat(board.style.getPropertyValue('--cell-size'));
-    if (marker) {
+    if (marker && activeLayer===fl) {
       marker.style.transform = `translate(${(tx - fx) * cellSize * progress}px, ${(ty - fy) * cellSize * progress}px)`;
       marker.style.zIndex = '3';
+      marker.style.opacity=fl===tl?'1':String(1-progress*.7);
     }
     if (showing3D) threeView?.movePack(step.from, step.to, progress);
     routeProgress.textContent = `경로 ${step.route + 1}/${routePlan.routes.length} · ${step.fromNumber} → ${step.toNumber} · 이동 ${index + 1}/${routePlan.steps.length}`;
   },
   onStep(step) {
     playbackMap.delete(step.from); playbackMap.set(step.to, step.pack);
+    if(!showing3D)showLayer(Number(step.to.split(',')[2]));
     render();
   },
   onComplete() {
@@ -211,7 +180,7 @@ addRoute.addEventListener('click', () => {
 });
 document.querySelector('#route-play').addEventListener('click', () => {
   try {
-    const plan = prepareRoutes(routeInput.value, [...selected.values()], placements, numberingOffset());
+    const plan = prepareRoutes(routeInput.value, allCells(), placements);
     routePlayer.reset(); routePlan = plan; routeFinished = false; playbackMap = new Map(placements);
     message(''); render(); routePlayer.load(plan.steps); routePlayer.play();
   } catch (error) { message(error.message); }
@@ -228,13 +197,14 @@ document.querySelector('#route-reset').addEventListener('click', () => {
 document.querySelector('#route-close').addEventListener('click', () => { closeRoutes(); render(); });
 
 function openNumberPanel(key) {
+  const level=Number(key.split(',')[2]);if(level!==activeLayer)showLayer(level);
   editingKey = key;
   editingPack = currentMap().get(key);
   input.value = editingPack.number ?? '';
   numberError.textContent = '';
   document.querySelector('#number-title').textContent = `${editingPack.name} 번호`;
   const [x, y] = key.split(',').map(Number);
-  document.querySelector('#number-position').textContent = `${y + 1}행 ${x + 1}열 · 저장하면 다음 팩으로 이동`;
+  document.querySelector('#number-position').textContent = `${activeLayer + 1}층 · ${y + 1}행 ${x + 1}열 · 저장하면 다음 팩으로 이동`;
   render();
   input.focus();
   input.select();
@@ -295,10 +265,10 @@ function remaining(pack) {
 function invalidate() {
   placementComplete = false;
   numberingComplete = false;
+  const valid=new Set(allCells().filter(c=>!c.kind).map(c=>`${c.x},${c.y},${c.level}`));
+  for(const[key]of placements)if(!valid.has(key))placements.delete(key);
   const available = new Set(placements.values());
-  for (const [key, item] of destination) {
-    if (!selected.has(key) || !available.has(item)) destination.delete(key);
-  }
+  for(const[key,item]of destination)if(!valid.has(key)||!available.has(item))destination.delete(key);
 }
 
 for (const pack of packs) {
@@ -358,12 +328,13 @@ function render() {
   for (const cell of board.children) {
     const key = `${cell.dataset.x},${cell.dataset.y}`;
     const active = selected.has(key);
-    const pack = map.get(key);
+    const globalKey=placeKey(key,activeLayer);
+    const pack = map.get(globalKey);
     const kind = selected.get(key)?.kind;
     cell.classList.toggle('selected', active);
     cell.classList.toggle('occupied', Boolean(pack) || Boolean(kind));
     cell.classList.remove('moving-from');
-    cell.classList.toggle('numbering-current', !dialog.hidden && key === editingKey);
+    cell.classList.toggle('numbering-current', !dialog.hidden && globalKey === editingKey);
     cell.textContent = '';
     if (active) {
       const number = document.createElement('span');
@@ -435,7 +406,7 @@ function render() {
       ? `남은 수량 ${remaining(packs.find(pack => pack.id === option.dataset.pack)).length}개` : '';
   }
   const names = { drawing: '파레트 그리는 중', idle: showingDestination ? '도착맵 보기' : '시작맵 보기', start: '시작맵 배치 중', numbering: '팩 번호 매기는 중', destination: '도착맵 배치 중', 'destination-numbering': '도착맵 팩 번호 매기는 중' };
-  status.textContent = `${activeLayer + 1}층 · ${names[mode]} · 파레트 ${selected.size}칸 · 팩 ${map.size}개`;
+  status.textContent = `${activeLayer + 1}층 · ${names[mode]} · 파레트 ${allCells().length}칸 · 전체 팩 ${map.size}개`;
   const instructions = {
     drawing: '클릭으로 선택·해제하고, 누른 채 드래그하면 여러 칸을 선택합니다. 빈칸도 번호에 포함됩니다.',
     start: '팩을 골라 배치하세요. 배치를 마치면 팩 번호를 매길 수 있습니다.',
@@ -447,12 +418,7 @@ function render() {
   instruction.textContent = instructions[mode];
   if (showing3D) {
     instruction.textContent = `${showingDestination ? '도착맵' : '시작맵'} 3D 보기 · 사각팩 2×2cm / 원형팩 지름 2cm · 높이 소 4, 중 5, 대 6cm`;
-    const layers = layerSnapshots.map((snapshot, index) => {
-      if (index === activeLayer) return { cells: [...selected.values()], placements: currentMap(), level: index, offset: offsets[index], active: true };
-      if (!snapshot) return { cells: [], placements: new Map(), level: index };
-      const layer = decodeWorkspace(snapshot);
-      return { cells: [...layer.selected.values()], placements: showingDestination ? layer.destination : layer.placements, level: index, offset: offsets[index] };
-    });
+    const layers = allLayers().map((layer,index)=>({cells:layer?[...layer.values()]:[],placements:localPacks(currentMap(),index),level:index,offset:offsets[index],active:true}));
     threeView.setData([...selected.values()], currentMap(), { preserveView: routeOpen, layers });
   }
   fitBoard();
@@ -542,33 +508,34 @@ board.addEventListener('click', event => {
   const x = Number(cell.dataset.x);
   const y = Number(cell.dataset.y);
   const key = `${x},${y}`;
+  const globalKey=placeKey(key,activeLayer);
   message('');
   if (['drawing', 'start', 'destination'].includes(mode) && cellKind !== 'normal') {
     const previous = selected.get(key);
     selected.set(key, previous?.kind === cellKind ? { x, y } : { x, y, kind: cellKind });
-    placements.delete(key); destination.delete(key);
+    placements.delete(globalKey); destination.delete(globalKey);
     invalidate(); render(); return;
   }
   if (mode !== 'drawing' && selected.get(key)?.kind && ['start', 'destination'].includes(mode)) {
     message('X 고정팩과 H 홀에는 팩을 배치할 수 없습니다.'); return;
   }
   if (mode === 'drawing') {
-    if (selected.has(key)) { selected.delete(key); placements.delete(key); }
+    if (selected.has(key)) { selected.delete(key); placements.delete(globalKey); }
     else selected.set(key, { x, y });
     invalidate();
   } else if (mode === 'start' && selected.has(key)) {
-    if (placements.get(key)?.id === chosenPack.id) placements.delete(key);
-    else placements.set(key, { ...chosenPack, number: null });
+    if (placements.get(globalKey)?.id === chosenPack.id) placements.delete(globalKey);
+    else placements.set(globalKey, { ...chosenPack, number: null });
     invalidate();
-  } else if ((mode === 'numbering' || mode === 'destination-numbering') && currentMap().has(key)) {
-    openNumberPanel(key);
+  } else if ((mode === 'numbering' || mode === 'destination-numbering') && currentMap().has(globalKey)) {
+    openNumberPanel(globalKey);
     return;
   } else if (mode === 'destination' && selected.has(key)) {
-    if (destination.get(key)?.id === chosenPack.id) destination.delete(key);
+    if (destination.get(globalKey)?.id === chosenPack.id) destination.delete(globalKey);
     else {
       const item = remaining(chosenPack)[0];
       if (!item) { message(`${chosenPack.name}의 남은 수량이 없습니다. 배치된 팩을 지운 뒤 다시 놓을 수 있습니다.`); return; }
-      destination.set(key, item);
+      destination.set(globalKey, item);
     }
   } else return;
   render();
