@@ -59,18 +59,18 @@ export function create3DView(container) {
     reset();
   }
   new ResizeObserver(resize).observe(container);
-  function label(text, color, transparent = false) {
+  function label(text, color, transparent = false, square = false) {
     const canvas = document.createElement('canvas');
-    canvas.width = 512; canvas.height = 256;
+    canvas.width = 512; canvas.height = square ? 512 : 256;
     const context = canvas.getContext('2d');
     if (!transparent) {
       context.fillStyle = 'rgba(255,255,255,.94)';
-      context.fillRect(0, 0, 512, 256);
+      context.fillRect(0, 0, canvas.width, canvas.height);
     }
     context.fillStyle = color;
-    context.font = 'bold 180px system-ui';
+    context.font = `bold ${square ? 440 : 180}px system-ui`;
     context.textAlign = 'center'; context.textBaseline = 'middle';
-    context.fillText(String(text), 256, 128, 480);
+    context.fillText(String(text), 256, canvas.height / 2, 480);
     const texture = new THREE.CanvasTexture(canvas);
     texture.colorSpace = THREE.SRGBColorSpace;
     return texture;
@@ -91,22 +91,12 @@ export function create3DView(container) {
     clear();
     movingPacks.clear();
     const alignment = layers.flatMap(layer => layer.cells);
-    const model = layers.flatMap(layer => sceneModel(layer.cells, layer.placements, alignment).map(item => ({
+    const model = layers.flatMap(layer => sceneModel(layer.cells, layer.placements, alignment, layer.offset ?? 0).map(item => ({
       ...item, key: layer.active ? item.key : `${layer.level}:${item.key}`, elevation: layer.level * 8,
     })));
     positions = new Map(model.map(item => [item.key, item]));
     for (const item of model) {
       let baseGeometry = new THREE.BoxGeometry(4, 0.18, 4);
-      if (item.kind === 'hole') {
-        baseGeometry.dispose();
-        const shape = new THREE.Shape();
-        shape.moveTo(-2, -2); shape.lineTo(2, -2); shape.lineTo(2, 2); shape.lineTo(-2, 2); shape.closePath();
-        const hole = new THREE.Path();
-        hole.moveTo(-1, -1); hole.lineTo(-1, 1); hole.lineTo(1, 1); hole.lineTo(1, -1); hole.closePath();
-        shape.holes.push(hole);
-        baseGeometry = new THREE.ExtrudeGeometry(shape, { depth: 0.18, bevelEnabled: false });
-        baseGeometry.rotateX(Math.PI / 2); baseGeometry.translate(0, 0.09, 0);
-      }
       const base = new THREE.Mesh(baseGeometry,
         new THREE.MeshStandardMaterial({ color: 0xe2e8f0, roughness: 0.9 }));
       base.position.set(item.x, item.elevation -0.09, item.z);
@@ -115,11 +105,11 @@ export function create3DView(container) {
         new THREE.LineBasicMaterial({ color: 0x475569 }));
       outline.position.copy(base.position);
       group.add(outline);
-      if (item.kind === 'fixed') {
-        const fixed = new THREE.Mesh(new THREE.BoxGeometry(2, 4, 2), new THREE.MeshStandardMaterial({ color: 0x475569 }));
-        fixed.position.set(item.x, item.elevation + 2, item.z); group.add(fixed);
-        const mark = new THREE.Mesh(new THREE.PlaneGeometry(1.8, .9), new THREE.MeshBasicMaterial({ map: label('X', '#fff', true), transparent: true }));
-        mark.rotation.x = -Math.PI / 2; mark.position.set(item.x, item.elevation + 4.01, item.z); group.add(mark);
+      if (['fixed', 'fixed-circle'].includes(item.kind)) {
+        const fixed = new THREE.Mesh(item.kind === 'fixed-circle' ? new THREE.CylinderGeometry(1, 1, 6, 48) : new THREE.BoxGeometry(2, 6, 2), new THREE.MeshStandardMaterial({ color: item.kind === 'fixed-circle' ? 0x2563eb : 0xdc2626 }));
+        fixed.position.set(item.x, item.elevation + 3, item.z); group.add(fixed);
+        const mark = new THREE.Mesh(new THREE.PlaneGeometry(1.8, 1.8), new THREE.MeshBasicMaterial({ map: label('X', '#000000', true, true), transparent: true }));
+        mark.rotation.x = -Math.PI / 2; mark.position.set(item.x, item.elevation + 6.01, item.z); group.add(mark);
       }
       if (item.pack) {
         const pack = item.pack;
@@ -143,11 +133,11 @@ export function create3DView(container) {
         movingPacks.set(item.key, { mesh, inscription });
       }
       // Keep floor numbers under occupied packs so moving away reveals the source.
-      const number = new THREE.Mesh(new THREE.PlaneGeometry(2.8, 1.4),
-        new THREE.MeshBasicMaterial({ map: label(item.kind === 'hole' ? `${item.cellNumber} H` : item.cellNumber, '#475569') }));
+      const number = new THREE.Mesh(new THREE.PlaneGeometry(2.8, item.kind === 'hole' ? 2.8 : 1.4),
+        new THREE.MeshBasicMaterial({ map: label(item.kind === 'hole' ? 'H' : item.cellNumber, item.kind === 'hole' ? '#2563eb' : '#475569', item.kind === 'hole', item.kind === 'hole'), transparent: item.kind === 'hole' }));
       number.rotation.x = -Math.PI / 2;
       number.position.set(item.x, item.elevation + 0.01, item.z);
-      if (item.kind === 'hole') { number.scale.setScalar(.55); number.position.z += 1.5; }
+
       group.add(number);
     }
     const bounds = new THREE.Box3().setFromObject(group);

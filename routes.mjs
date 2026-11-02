@@ -1,12 +1,12 @@
 import { numberCells } from './numbering.mjs';
 
-export function prepareRoutes(text, cells, startMap) {
+export function prepareRoutes(text, cells, startMap, offset = 0) {
   let routes;
   try { routes = JSON.parse(text); } catch { throw new Error('경로를 [[0,1,2],[2,3]] 형태의 배열로 입력해 주세요.'); }
   if (!Array.isArray(routes) || !routes.length || routes.length > 1000) {
     throw new Error('경로는 1개 이상, 1000개 이하로 입력해 주세요.');
   }
-  const positions = new Map([...numberCells(cells)].map(([key, number]) => [number, key]));
+  const positions = new Map([...numberCells(cells, offset)].map(([key, number]) => [number, key]));
   const kinds = new Map(cells.map(cell => [`${cell.x},${cell.y}`, cell.kind]));
   const result = new Map(startMap);
   const steps = [];
@@ -21,7 +21,7 @@ export function prepareRoutes(text, cells, startMap) {
       if (!positions.has(number)) throw new Error(`${index + 1}번째 경로의 ${number}번 위치는 파레트에 없습니다.`);
     }
     for (const number of route) {
-      if (kinds.get(positions.get(number)) === 'fixed') throw new Error(`${number}번 위치는 X 고정팩이 있어 이동할 수 없습니다.`);
+      if (['fixed', 'fixed-circle'].includes(kinds.get(positions.get(number)))) throw new Error(`${number}번 위치는 X 고정팩이 있어 이동할 수 없습니다.`);
     }
     if (kinds.get(positions.get(route.at(-1))) === 'hole') throw new Error(`${route.at(-1)}번 위치는 H 홀이므로 이동을 끝낼 수 없습니다.`);
     let from = positions.get(route[0]);
@@ -30,7 +30,7 @@ export function prepareRoutes(text, cells, startMap) {
     for (let i = 1; i < route.length; i++) {
       const to = positions.get(route[i]);
       const start = from.split(',').map(Number), end = to.split(',').map(Number);
-      for (const cell of cells.filter(cell => cell.kind === 'fixed')) {
+      for (const cell of cells.filter(cell => ['fixed', 'fixed-circle'].includes(cell.kind))) {
         let enter = 0, leave = 1;
         for (const [axis, center] of [[0, cell.x], [1, cell.y]]) {
           const delta = end[axis] - start[axis];

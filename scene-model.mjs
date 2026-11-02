@@ -1,13 +1,13 @@
 import { numberCells } from './numbering.mjs';
 
 // World units are centimetres. Each pallet position has a 4 × 4cm footprint.
-export function sceneModel(cells, placements, alignment = cells) {
+export function sceneModel(cells, placements, alignment = cells, offset = 0) {
   if (!cells.length) return [];
   const minX = Math.min(...alignment.map(cell => cell.x));
   const maxX = Math.max(...alignment.map(cell => cell.x));
   const minY = Math.min(...alignment.map(cell => cell.y));
   const maxY = Math.max(...alignment.map(cell => cell.y));
-  const numbers = numberCells(cells);
+  const numbers = numberCells(cells, offset);
   return cells.map(({ x, y, kind }) => ({
     kind,
     key: `${x},${y}`, x: (x - (minX + maxX) / 2) * 4,

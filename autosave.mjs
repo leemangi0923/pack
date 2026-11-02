@@ -26,7 +26,7 @@ export function decodeWorkspace(text) {
   const selected = new Map();
   for (const cell of data.cells) {
     check(Array.isArray(cell) && (cell.length === 2 || cell.length === 3) && cell.slice(0, 2).every(n => Number.isInteger(n) && n >= 0 && n < 40));
-    check(cell.length === 2 || ['fixed', 'hole'].includes(cell[2]));
+    check(cell.length === 2 || ['fixed', 'fixed-circle', 'hole'].includes(cell[2]));
     const [x, y] = cell;
     check(!selected.has(`${x},${y}`)); selected.set(`${x},${y}`, cell.length === 3 ? { x, y, kind: cell[2] } : { x, y });
   }

@@ -200,3 +200,8 @@ main:not([data-tool="none"]) { grid-template-columns: minmax(0, 1fr) 278px; }
 .special-cell { position: absolute; left: 25%; top: 25%; width: 50%; height: 50%; display: grid; place-items: center; font: 700 calc(var(--cell-size) * .34)/1 system-ui; }
 .special-cell.fixed { background: #475569; color: white; }
 .special-cell.hole { border: 2px dashed #64748b; color: #64748b; background: #edf1f8; border-radius: 50%; }
+.special-cell.fixed { background: #dc2626; color: #000; font-size: calc(var(--cell-size) * .43); font-weight: 900; }
+.special-cell.fixed-circle { background: #2563eb; color: #000; border-radius: 50%; font-size: calc(var(--cell-size) * .43); font-weight: 900; }
+.special-cell.hole { border: 0; background: transparent; color: #2563eb; border-radius: 0; font-size: calc(var(--cell-size) * .52); }
+#layer-tabs { flex-wrap: wrap; }
+#layer-tabs button { white-space: nowrap; }

@@ -1,4 +1,4 @@
-import { numberCells } from './numbering.mjs';
+import { numberCells, layerOffsets } from './numbering.mjs';
 import { packs, packPreview } from './packs.mjs';
 import { nextPackKey } from './pack-order.mjs';
 import { parsePackLabel, symbolLabels } from './pack-labels.mjs';
@@ -61,6 +61,11 @@ let saveTimer = null;
 let lastSaved = null;
 let activeLayer = 0;
 let layerSnapshots = [null, null, null];
+function layerCells() {
+  return layerSnapshots.map((snapshot, index) => index === activeLayer ? [...selected.values()]
+    : snapshot ? [...decodeWorkspace(snapshot).selected.values()] : []);
+}
+function numberingOffset() { return layerOffsets(layerCells())[activeLayer]; }
 
 function currentLayerText() {
   return encodeWorkspace({
@@ -98,10 +103,13 @@ document.querySelector('#layer-tabs').addEventListener('click', event => {
   finishStroke();
   layerSnapshots[activeLayer] = currentLayerText();
   closeRoutes(); showing3D = false;
+  cellKind = 'normal';
   activeLayer = next;
+  const below = next > 0 && layerSnapshots[next - 1] ? decodeWorkspace(layerSnapshots[next - 1]).selected : new Map();
+  const copied = new Map([...below].map(([key, { x, y }]) => [key, { x, y }]));
   const fresh = encodeWorkspace({
-    selected: new Map([['5,3', { x: 5, y: 3 }]]), placements: new Map(), destination: new Map(),
-    mode: 'drawing', showingDestination: false, placementComplete: false, numberingComplete: false,
+    selected: copied.size ? copied : new Map([['5,3', { x: 5, y: 3 }]]), placements: new Map(), destination: new Map(),
+    mode: copied.size ? 'idle' : 'drawing', showingDestination: false, placementComplete: false, numberingComplete: false,
     chosenPack: packs[0], routeText: '', numberDraft: null,
   });
   applyLayer(decodeWorkspace(layerSnapshots[next] ?? fresh));
@@ -203,7 +211,7 @@ addRoute.addEventListener('click', () => {
 });
 document.querySelector('#route-play').addEventListener('click', () => {
   try {
-    const plan = prepareRoutes(routeInput.value, [...selected.values()], placements);
+    const plan = prepareRoutes(routeInput.value, [...selected.values()], placements, numberingOffset());
     routePlayer.reset(); routePlan = plan; routeFinished = false; playbackMap = new Map(placements);
     message(''); render(); routePlayer.load(plan.steps); routePlayer.play();
   } catch (error) { message(error.message); }
@@ -318,8 +326,16 @@ board.append(fragment);
 function render() {
   cellTools.hidden = !['drawing', 'start', 'destination'].includes(mode);
   for (const option of cellTools.querySelectorAll('button')) option.setAttribute('aria-pressed', String(option.dataset.kind === cellKind));
+  const cellsByLayer = layerCells();
+  const offsets = layerOffsets(cellsByLayer);
   for (const button of document.querySelectorAll('#layer-tabs button')) {
-    button.setAttribute('aria-pressed', String(Number(button.dataset.layer) === activeLayer));
+    const index = Number(button.dataset.layer);
+    const exists = index === activeLayer || layerSnapshots[index] !== null;
+    button.setAttribute('aria-pressed', String(index === activeLayer));
+    button.disabled = !exists && index > 0 && !cellsByLayer[index - 1].length;
+    const values = [...numberCells(cellsByLayer[index], offsets[index]).values()];
+    button.textContent = exists ? `${index + 1}층${values.length ? ` · ${offsets[index]}–${Math.max(...values)}` : ''}` : `＋ ${index + 1}층 만들기`;
+    button.title = exists ? '이 층 편집하기' : '아래층 모양을 복사해 빈 위층 만들기';
   }
   const drawing = mode === 'drawing';
   const mapping = mode === 'start' || mode === 'destination';
@@ -338,7 +354,7 @@ function render() {
   if (!numbering) { editingKey = null; editingPack = null; }
   dialog.hidden = !numbering || editingKey === null;
   const map = currentMap();
-  const numbers = numberCells([...selected.values()]);
+  const numbers = numberCells([...selected.values()], offsets[activeLayer]);
   for (const cell of board.children) {
     const key = `${cell.dataset.x},${cell.dataset.y}`;
     const active = selected.has(key);
@@ -359,8 +375,8 @@ function render() {
       if (kind) {
         const special = document.createElement('span');
         special.className = `special-cell ${kind}`;
-        special.textContent = kind === 'fixed' ? 'X' : 'H';
-        special.title = kind === 'fixed' ? '고정팩 · 이동 불가' : '홀 · 통과 가능, 배치 불가';
+        special.textContent = kind === 'hole' ? 'H' : 'X';
+        special.title = kind === 'hole' ? '홀 · 통과 가능, 배치 불가' : `${kind === 'fixed-circle' ? '원형' : '사각'} 대형 고정팩 · 이동 불가`;
         cell.append(special);
       }
       if (pack) {
@@ -379,7 +395,7 @@ function render() {
     cell.setAttribute('aria-pressed', String(active));
     cell.setAttribute('aria-label', `${Number(cell.dataset.y) + 1}행 ${Number(cell.dataset.x) + 1}열${active ? `, 칸 ${numbers.get(key)}번` : ''}${pack ? `, ${pack.name}, 높이 ${pack.height}cm, 팩 번호 ${pack.number ?? '미지정'}` : ''}`);
     cell.disabled = !drawing && !(active && (mapping || ((mode === 'numbering' || mode === 'destination-numbering') && pack)));
-    if (kind) cell.setAttribute('aria-label', `${cell.getAttribute('aria-label')}, ${kind === 'fixed' ? 'X 고정팩' : 'H 홀, 통과 가능 배치 불가'}`);
+    if (kind) cell.setAttribute('aria-label', `${cell.getAttribute('aria-label')}, ${kind === 'hole' ? 'H 홀, 통과 가능 배치 불가' : 'X 대형 고정팩'}`);
   }
   board.classList.toggle('finished', !drawing);
   toggle.textContent = drawing ? '파레트 그리기 종료' : '파레트 다시 그리기';
@@ -432,10 +448,10 @@ function render() {
   if (showing3D) {
     instruction.textContent = `${showingDestination ? '도착맵' : '시작맵'} 3D 보기 · 사각팩 2×2cm / 원형팩 지름 2cm · 높이 소 4, 중 5, 대 6cm`;
     const layers = layerSnapshots.map((snapshot, index) => {
-      if (index === activeLayer) return { cells: [...selected.values()], placements: currentMap(), level: index, active: true };
+      if (index === activeLayer) return { cells: [...selected.values()], placements: currentMap(), level: index, offset: offsets[index], active: true };
       if (!snapshot) return { cells: [], placements: new Map(), level: index };
       const layer = decodeWorkspace(snapshot);
-      return { cells: [...layer.selected.values()], placements: showingDestination ? layer.destination : layer.placements, level: index };
+      return { cells: [...layer.selected.values()], placements: showingDestination ? layer.destination : layer.placements, level: index, offset: offsets[index] };
     });
     threeView.setData([...selected.values()], currentMap(), { preserveView: routeOpen, layers });
   }
