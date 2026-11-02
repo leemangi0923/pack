@@ -60,6 +60,10 @@ cellTools.addEventListener('click', event => {
 const saveStatus = document.querySelector('#save-status');
 let saveTimer = null;
 let lastSaved = null;
+let initialWorkspaceText = null;
+let previousWorkspaceText = null;
+let workStarted = false;
+const loadPrevious = document.querySelector('#load-previous');
 let activeLayer = 0;
 let layerSnapshots = [null, null, null];
 function allLayers() {
@@ -89,6 +93,7 @@ document.querySelector('#layer-tabs').addEventListener('click',event=>{
 });
 function saveWorkspace() {
   clearTimeout(saveTimer);
+  if (!workStarted) return;
   try {
     const text = workspaceText();
     if (text !== lastSaved) { localStorage.setItem(SAVE_KEY, text); lastSaved = text; }
@@ -103,16 +108,21 @@ function saveWorkspace() {
 }
 function scheduleSave() {
   clearTimeout(saveTimer);
+  if (!workStarted) {
+    if (workspaceText() === initialWorkspaceText) return;
+    workStarted = true;
+  }
   if (workspaceText() !== lastSaved) saveStatus.textContent = '자동 저장 중…';
   saveTimer = setTimeout(saveWorkspace, 200);
 }
-function restoreWorkspace() {
+function restoreWorkspace(text) {
   try {
-    const text = localStorage.getItem(SAVE_KEY);
-    if (text === null) return;
+    if (text === null) { message('불러올 저장 내용이 없습니다.'); return; }
     let restored;
     try { restored=decodeUnified(text); }
     catch {localStorage.setItem(`${SAVE_KEY}.backup`,text);message('저장 데이터를 복원하지 못했습니다. 기존 데이터는 백업했습니다.');return;}
+    clearTimeout(saveTimer);
+    closeRoutes(); showing3D = false; editingKey = null; editingPack = null;
     activeLayer=restored.activeLayer;layerSnapshots=restored.layers;
     selected.clear();for(const[k,c]of restored.layers[activeLayer])selected.set(k,c);
     placements.clear();for(const[k,p]of restored.placements)placements.set(k,p);
@@ -127,7 +137,11 @@ function restoreWorkspace() {
       document.querySelector('#number-position').textContent=`${level+1}층 · ${y+1}행 ${x+1}열 · 저장하면 다음 팩으로 이동`;
     }
     lastSaved = text;
+    workStarted = true;
     saveStatus.textContent = '자동 저장 복원됨';
+    saveStatus.dataset.error = 'false';
+    message('이전 작업을 불러왔습니다.');
+    render();
   } catch {
     saveStatus.textContent = '자동 저장 사용 불가'; saveStatus.dataset.error = 'true';
   }
@@ -630,7 +644,16 @@ document.querySelector('#cancel-number').addEventListener('click', closeNumberPa
 dialog.addEventListener('keydown', event => {
   if (event.key === 'Escape') { event.preventDefault(); closeNumberPanel(); }
 });
-restoreWorkspace();
+try {
+  previousWorkspaceText = localStorage.getItem(SAVE_KEY);
+  loadPrevious.disabled = previousWorkspaceText === null;
+  loadPrevious.title = previousWorkspaceText === null ? '아직 저장된 작업이 없습니다.' : '이번 접속 전에 저장된 작업을 불러옵니다.';
+} catch {
+  loadPrevious.disabled = true;
+  saveStatus.textContent = '브라우저 저장 사용 불가'; saveStatus.dataset.error = 'true';
+}
+initialWorkspaceText = workspaceText();
+loadPrevious.addEventListener('click', () => restoreWorkspace(previousWorkspaceText));
 render();
 routeInput.addEventListener('input', scheduleSave);
 input.addEventListener('input', scheduleSave);

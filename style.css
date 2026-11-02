@@ -205,3 +205,4 @@ main:not([data-tool="none"]) { grid-template-columns: minmax(0, 1fr) 278px; }
 .special-cell.hole { border: 0; background: transparent; color: #2563eb; border-radius: 0; font-size: calc(var(--cell-size) * .52); }
 #layer-tabs { flex-wrap: wrap; }
 #layer-tabs button { white-space: nowrap; }
+@media(max-width:600px) { .app-header > .actions { gap: 5px; } #load-previous { font-size: 9px; padding: 6px; } .app-header { flex-wrap: wrap; height: auto; min-height: 58px; padding-top: 8px; padding-bottom: 8px; } }
