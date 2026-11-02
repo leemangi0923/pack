@@ -13,6 +13,8 @@ export function prepareRoutes(text, cells, startMap, offset = 0) {
   const positions = multi ? new Map(groups.flatMap((group,level)=>[...numberCells(group,offsets[level])].map(([key,number])=>[number,`${key},${level}`]))) : new Map([...numberCells(cells,offset)].map(([key,number])=>[number,key]));
   const kinds=new Map(cells.map(c=>[keyOf(c),c.kind]));
   const result = new Map(startMap);
+  const baseHeight = (x,y,level,state) => cells.filter(c=>c.x===x&&c.y===y&&(c.level??0)<level)
+    .reduce((height,c)=>height+(state.get(keyOf(c))?.height??(['fixed','fixed-circle'].includes(c.kind)?6:0)),0);
   const steps = [];
   let total = 0;
   for (const [index, route] of routes.entries()) {
@@ -39,8 +41,9 @@ export function prepareRoutes(text, cells, startMap, offset = 0) {
         const levelFrom=start[2]??0,levelTo=end[2]??0;
         if (levelFrom!==levelTo) {
           let lo=0,hi=1;
-          const a=[start[0]*4,levelFrom*8+pack.height/2,start[1]*4],b=[end[0]*4,levelTo*8+pack.height/2,end[1]*4];
-          const mid=[cell.x*4,(cell.level??0)*8+3,cell.y*4],radius=[2,(6+pack.height)/2,2];
+          const afterDeparture=new Map(result);afterDeparture.delete(from);
+          const a=[start[0]*4,baseHeight(start[0],start[1],levelFrom,result)+pack.height/2,start[1]*4],b=[end[0]*4,baseHeight(end[0],end[1],levelTo,afterDeparture)+pack.height/2,end[1]*4];
+          const mid=[cell.x*4,baseHeight(cell.x,cell.y,cell.level??0,result)+3,cell.y*4],radius=[2,(6+pack.height)/2,2];
           for(let j=0;j<3;j++){const d=b[j]-a[j];if(!d){if(Math.abs(a[j]-mid[j])>=radius[j])hi=-1;}else{const t1=(mid[j]-radius[j]-a[j])/d,t2=(mid[j]+radius[j]-a[j])/d;lo=Math.max(lo,Math.min(t1,t2));hi=Math.min(hi,Math.max(t1,t2));}}
           if(lo<hi)throw new Error('층간 이동 구간에 X 고정팩이 있습니다. 우회 경유지를 추가해 주세요.');
           continue;

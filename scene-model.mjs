@@ -1,5 +1,16 @@
 import { numberCells } from './numbering.mjs';
 
+export function stackScene(model) {
+  const tops = new Map();
+  for (const item of model) {
+    const column = `${item.x},${item.z}`;
+    item.elevation = tops.get(column) ?? 0;
+    const height = item.pack?.height ?? (['fixed', 'fixed-circle'].includes(item.kind) ? 6 : 0);
+    tops.set(column, item.elevation + height);
+  }
+  return model;
+}
+
 // World units are centimetres. Each pallet position has a 4 × 4cm footprint.
 export function sceneModel(cells, placements, alignment = cells, offset = 0) {
   if (!cells.length) return [];

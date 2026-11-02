@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { OrbitControls } from './vendor/three/OrbitControls.js';
-import { sceneModel } from './scene-model.mjs';
+import { sceneModel, stackScene } from './scene-model.mjs';
 
 export function create3DView(container) {
   const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
@@ -92,18 +92,23 @@ export function create3DView(container) {
     movingPacks.clear();
     const alignment = layers.flatMap(layer => layer.cells);
     const model = layers.flatMap(layer => sceneModel(layer.cells, layer.placements, alignment, layer.offset ?? 0).map(item => ({
-      ...item, key: `${item.key},${layer.level}`, elevation: layer.level * 8,
+      ...item, key: `${item.key},${layer.level}`, level: layer.level, elevation: 0,
     })));
     positions = new Map(model.map(item => [item.key, item]));
+    stackScene(model);
     for (const item of model) {
-      let baseGeometry = new THREE.BoxGeometry(4, 0.18, 4);
+      const baseGeometry = item.level > 0 ? new THREE.PlaneGeometry(4, 4) : new THREE.BoxGeometry(4, 0.18, 4);
       const base = new THREE.Mesh(baseGeometry,
-        new THREE.MeshStandardMaterial({ color: 0xe2e8f0, roughness: 0.9 }));
-      base.position.set(item.x, item.elevation -0.09, item.z);
+        new THREE.MeshStandardMaterial({ color: 0xe2e8f0, roughness: 0.9,
+          transparent: item.level > 0, opacity: item.level > 0 ? .08 : 1,
+          depthWrite: item.level === 0, side: THREE.DoubleSide }));
+      base.position.set(item.x, item.level > 0 ? item.elevation : -.09, item.z);
+      if (item.level > 0) base.rotation.x = -Math.PI / 2;
       group.add(base);
       const outline = new THREE.LineSegments(new THREE.EdgesGeometry(base.geometry),
         new THREE.LineBasicMaterial({ color: 0x475569 }));
       outline.position.copy(base.position);
+      outline.rotation.copy(base.rotation);
       group.add(outline);
       if (['fixed', 'fixed-circle'].includes(item.kind)) {
         const fixed = new THREE.Mesh(item.kind === 'fixed-circle' ? new THREE.CylinderGeometry(1, 1, 6, 48) : new THREE.BoxGeometry(2, 6, 2), new THREE.MeshStandardMaterial({ color: item.kind === 'fixed-circle' ? 0x2563eb : 0xdc2626 }));
@@ -134,7 +139,7 @@ export function create3DView(container) {
       }
       // Keep floor numbers under occupied packs so moving away reveals the source.
       const number = new THREE.Mesh(new THREE.PlaneGeometry(2.8, item.kind === 'hole' ? 2.8 : 1.4),
-        new THREE.MeshBasicMaterial({ map: label(item.kind === 'hole' ? 'H' : item.cellNumber, item.kind === 'hole' ? '#2563eb' : '#475569', item.kind === 'hole', item.kind === 'hole'), transparent: item.kind === 'hole' }));
+        new THREE.MeshBasicMaterial({ map: label(item.kind === 'hole' ? 'H' : item.cellNumber, item.kind === 'hole' ? '#2563eb' : '#475569', item.kind === 'hole' || item.level > 0, item.kind === 'hole'), transparent: item.kind === 'hole' || item.level > 0, depthWrite: false }));
       number.rotation.x = -Math.PI / 2;
       number.position.set(item.x, item.elevation + 0.01, item.z);
 
@@ -177,10 +182,11 @@ export function create3DView(container) {
     const moving = movingPacks.get(from);
     const start = positions.get(from), end = positions.get(to);
     if (!moving || !start || !end) return;
+    const endElevation = end.elevation - (start.x === end.x && start.z === end.z && end.level > start.level ? moving.mesh.geometry.parameters.height : 0);
     for (const object of [moving.mesh, moving.inscription]) {
       object.position.x = THREE.MathUtils.lerp(start.x, end.x, progress);
       object.position.z = THREE.MathUtils.lerp(start.z, end.z, progress);
-      object.position.y = THREE.MathUtils.lerp(start.elevation, end.elevation, progress) + (object === moving.mesh ? moving.mesh.geometry.parameters.height / 2 : moving.mesh.geometry.parameters.height + 0.005);
+      object.position.y = THREE.MathUtils.lerp(start.elevation, endElevation, progress) + (object === moving.mesh ? moving.mesh.geometry.parameters.height / 2 : moving.mesh.geometry.parameters.height + 0.005);
     }
     draw();
   }
