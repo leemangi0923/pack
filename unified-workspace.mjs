@@ -29,7 +29,7 @@ export function decodeUnified(text) {
  check(Array.isArray(data.packs)&&Array.isArray(data.destination));
  for(const[k,id,number]of data.packs){const type=packs.find(p=>p.id===id);check(type&&valid(k)&&!source.has(k)&&(number===null||parsePackLabel(number)===number));const p={...type,number};source.set(k,p);identities.push(p)}
  const used=new Set();for(const[k,i]of data.destination){check(valid(k)&&!dest.has(k)&&Number.isInteger(i)&&identities[i]&&!used.has(i));used.add(i);dest.set(k,identities[i])}
- check(['drawing','idle','start','numbering','destination','destination-numbering'].includes(data.mode)&&typeof data.routeText==='string'&&data.routeText.length<=1000000);
+ check(['drawing','idle','start','numbering','destination','destination-numbering','replace'].includes(data.mode)&&typeof data.routeText==='string'&&data.routeText.length<=1000000);
  check(typeof data.showingDestination==='boolean'&&typeof data.placementComplete==='boolean'&&typeof data.numberingComplete==='boolean');
  const chosenPack=packs.find(p=>p.id===data.chosenPack);check(chosenPack);
  const numberDraft=data.numberDraft??null;if(numberDraft)check((data.showingDestination?dest:source).has(numberDraft.key)&&typeof numberDraft.value==='string'&&numberDraft.value.length<=6);

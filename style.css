@@ -206,3 +206,11 @@ main:not([data-tool="none"]) { grid-template-columns: minmax(0, 1fr) 278px; }
 #layer-tabs { flex-wrap: wrap; }
 #layer-tabs button { white-space: nowrap; }
 @media(max-width:600px) { .app-header > .actions { gap: 5px; } #load-previous { font-size: 9px; padding: 6px; } .app-header { flex-wrap: wrap; height: auto; min-height: 58px; padding-top: 8px; padding-bottom: 8px; } }
+#import-dialog { width: min(640px, calc(100% - 24px)); max-height: calc(100dvh - 24px); overflow: auto; border: 1px solid var(--line); border-radius: 14px; padding: 22px; color: #253047; }
+#import-dialog::backdrop { background: #17203388; }
+#import-dialog label { display: block; margin-top: 12px; font-size: 12px; }
+#import-text { display: block; width: 100%; min-height: 150px; margin: 8px 0; padding: 12px; border: 1px solid #cbd5e1; border-radius: 8px; font: 13px/1.5 monospace; resize: vertical; }
+#import-dialog .actions { justify-content: flex-end; margin-top: 14px; }
+#import-form button[type="submit"] { background: var(--accent); color: white; }
+#import-error { color: #c44747; padding-top: 8px; }
+#replace-packs[aria-pressed="true"] { color: var(--accent); background: #f0edff; }

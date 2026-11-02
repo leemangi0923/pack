@@ -8,8 +8,8 @@
 </head>
 <body>
   <header class="app-header">
-    <div class="brand"><span class="brand-mark" aria-hidden="true">▦</span><div><h1>파레트 스튜디오 <span class="version" aria-label="현재 버전 1.5.2">v1.5.2</span></h1><span class="brand-caption">파레트 설계 · 배치 · 이동 시뮬레이션</span></div></div>
-    <div class="actions"><button id="load-previous" type="button">전 내용 불러오기</button><span id="save-status" role="status" aria-live="polite" title="현재 브라우저에 자동 저장됩니다.">새 작업</span></div>
+    <div class="brand"><span class="brand-mark" aria-hidden="true">▦</span><div><h1>파레트 스튜디오 <span class="version" aria-label="현재 버전 1.6.0">v1.6.0</span></h1><span class="brand-caption">파레트 설계 · 배치 · 이동 시뮬레이션</span></div></div>
+    <div class="actions"><button id="open-import" type="button">리스트로 맵 만들기</button><button id="load-previous" type="button">전 내용 불러오기</button><span id="save-status" role="status" aria-live="polite" title="현재 브라우저에 자동 저장됩니다.">새 작업</span></div>
   </header>
   <nav id="workflow" aria-label="작업 단계">
     <button type="button" data-step="0"><span class="step-index">1</span><span>파레트<span class="step-description">작업 공간 그리기</span></span></button>
@@ -27,7 +27,7 @@
       <button id="destination-numbers" type="button" hidden>도착맵 팩 번호 매기기</button>
     </div>
     <div class="actions view-actions"><div id="cell-tools" class="actions" aria-label="칸 종류"><button type="button" data-kind="normal" aria-pressed="true">일반 칸</button><button type="button" data-kind="fixed" aria-pressed="false">사각 X</button><button type="button" data-kind="fixed-circle" aria-pressed="false">원형 X</button><button type="button" data-kind="hole" aria-pressed="false">H 홀</button></div>
-      <button id="view-start" type="button" hidden>시작맵 보기</button>
+      <button id="replace-packs" type="button" hidden aria-pressed="false">팩 바꾸기</button><button id="view-start" type="button" hidden>시작맵 보기</button>
       <button id="view-3d" type="button" hidden aria-pressed="false">3D로 보기</button>
       <button id="add-route" type="button" hidden>경로 추가하기</button>
     </div>
@@ -79,6 +79,25 @@
     </form>
   </aside>
   </main>
+  <dialog id="import-dialog" aria-labelledby="import-title">
+    <form id="import-form">
+      <h2 id="import-title">리스트로 맵 만들기</h2>
+      <p>p는 시작맵, e는 도착맵입니다. 한 줄이 한 행, 빈 줄은 다음 층입니다.</p>
+      <label for="import-text">p=[...]와 e=[...]를 함께 붙여 넣으세요.</label>
+      <textarea id="import-text" rows="15" required spellcheck="false" placeholder="p=[
+1,0,H,
+0,X,0,
+]
+
+e=[
+0,1,H,
+0,X,0,
+]"></textarea>
+      <p>0 빈칸 · H 홀 · X 사각 고정팩 · 일반 팩은 사각 중형으로 생성됩니다. 현재 작업을 대체합니다.</p>
+      <p id="import-error" role="alert"></p>
+      <div class="actions"><button id="cancel-import" type="button">취소</button><button type="submit">시작맵·도착맵 만들기</button></div>
+    </form>
+  </dialog>
   <script type="importmap">{"imports":{"three":"./vendor/three/three.module.min.js"}}</script>
   <script type="module" src="app.js"></script>
 </body>

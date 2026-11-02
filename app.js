@@ -6,6 +6,7 @@ import { prepareRoutes } from './routes.mjs';
 import { createRoutePlayer } from './route-player.mjs';
 import { SAVE_KEY } from './autosave.mjs';
 import { encodeUnified, decodeUnified, placeKey } from './unified-workspace.mjs';
+import { importMaps } from './map-import.mjs';
 
 const board = document.querySelector('#board');
 const toggle = document.querySelector('#toggle');
@@ -64,6 +65,31 @@ let initialWorkspaceText = null;
 let previousWorkspaceText = null;
 let workStarted = false;
 const loadPrevious = document.querySelector('#load-previous');
+const importDialog = document.querySelector('#import-dialog');
+document.querySelector('#open-import').addEventListener('click', () => {
+  routePlayer.pause();
+  document.querySelector('#import-error').textContent = '';
+  importDialog.showModal();
+});
+document.querySelector('#cancel-import').addEventListener('click', () => importDialog.close());
+document.querySelector('#import-form').addEventListener('submit', event => {
+  event.preventDefault();
+  try {
+    const state = importMaps(document.querySelector('#import-text').value);
+    restoreWorkspace(encodeUnified(state));
+    message('목록으로 시작맵·도착맵을 만들었습니다. 팩 종류는 ‘팩 바꾸기’로 번호를 유지하며 수정할 수 있습니다.');
+    importDialog.close();
+  } catch (error) { document.querySelector('#import-error').textContent = error.message; }
+});
+let replacePacks = false;
+const replaceButton = document.querySelector('#replace-packs');
+replaceButton.addEventListener('click', () => {
+  replacePacks = !replacePacks;
+  cellKind = 'normal';
+  if (replacePacks) mode = 'replace';
+  else mode = 'idle';
+  render();
+});
 let activeLayer = 0;
 let layerSnapshots = [null, null, null];
 function allLayers() {
@@ -322,7 +348,11 @@ function render() {
     button.title = exists ? '이 층 편집하기' : '아래층 모양을 복사해 빈 위층 만들기';
   }
   const drawing = mode === 'drawing';
-  const mapping = mode === 'start' || mode === 'destination';
+  const mapping = mode === 'start' || mode === 'destination' || mode === 'replace';
+  replacePacks = mode === 'replace';
+  replaceButton.hidden = placements.size === 0 || mode === 'drawing';
+  replaceButton.textContent = replacePacks ? '팩 바꾸기 완료' : '팩 바꾸기';
+  replaceButton.setAttribute('aria-pressed', String(replacePacks));
   const numbering = mode === 'numbering' || mode === 'destination-numbering';
   if (routeOpen && (mode !== 'idle' || showingDestination)) closeRoutes();
   routePanel.hidden = !routeOpen;
@@ -413,14 +443,18 @@ function render() {
     : showingDestination ? destinationNumbers : numberingComplete ? destinationButton : placementComplete ? numberPacks : startMap;
   for (const button of document.querySelectorAll('.editor-actions > button')) button.classList.toggle('primary-action', button === activeAction);
   document.querySelector('main').dataset.tool = mapping ? 'packs' : !dialog.hidden ? 'numbers' : routeOpen ? 'routes' : 'none';
-  document.querySelector('#pack-panel h2').textContent = showingDestination ? '도착맵 만들기' : '시작맵 만들기';
+  document.querySelector('#pack-panel h2').textContent = replacePacks ? '팩 종류 바꾸기 · 번호 유지' : showingDestination ? '도착맵 만들기' : '시작맵 만들기';
+  document.querySelector('#pack-panel > p').textContent = replacePacks
+    ? '종류와 크기를 고르고 팩을 클릭하세요. 번호와 시작·도착 위치는 유지됩니다.'
+    : '팩을 고른 뒤 칸을 클릭하세요. 같은 팩을 다시 놓으면 지워지고, 다른 팩을 놓으면 교체됩니다.';
   for (const option of packOptions.children) {
     option.setAttribute('aria-pressed', String(option.dataset.pack === chosenPack.id));
-    option.querySelector('.remaining').textContent = showingDestination
+    option.querySelector('.remaining').textContent = showingDestination && !replacePacks
       ? `남은 수량 ${remaining(packs.find(pack => pack.id === option.dataset.pack)).length}개` : '';
   }
   const names = { drawing: '파레트 그리는 중', idle: showingDestination ? '도착맵 보기' : '시작맵 보기', start: '시작맵 배치 중', numbering: '팩 번호 매기는 중', destination: '도착맵 배치 중', 'destination-numbering': '도착맵 팩 번호 매기는 중' };
   status.textContent = `${activeLayer + 1}층 · ${names[mode]} · 파레트 ${allCells().length}칸 · 전체 팩 ${map.size}개`;
+  if (replacePacks) status.textContent = `팩 종류 변경 · 모든 층에서 번호와 도착 위치 유지`;
   const instructions = {
     drawing: '클릭으로 선택·해제하고, 누른 채 드래그하면 여러 칸을 선택합니다. 빈칸도 번호에 포함됩니다.',
     start: '팩을 골라 배치하세요. 배치를 마치면 팩 번호를 매길 수 있습니다.',
@@ -430,6 +464,7 @@ function render() {
     idle: '시작맵 배치 → 팩 번호 매기기 → 도착맵 만들기 순서로 진행하세요.',
   };
   instruction.textContent = instructions[mode];
+  if (replacePacks) instruction.textContent = '종류·크기를 고르고 팩을 클릭하세요. 번호와 도착맵의 같은 팩도 함께 유지됩니다.';
   if (showing3D) {
     instruction.textContent = `${showingDestination ? '도착맵' : '시작맵'} 3D 보기 · 사각팩 2×2cm / 원형팩 지름 2cm · 높이 소 4, 중 5, 대 6cm`;
     const layers = allLayers().map((layer,index)=>({cells:layer?[...layer.values()]:[],placements:localPacks(currentMap(),index),level:index,offset:offsets[index],active:true}));
@@ -524,6 +559,13 @@ board.addEventListener('click', event => {
   const key = `${x},${y}`;
   const globalKey=placeKey(key,activeLayer);
   message('');
+  if (mode === 'replace') {
+    const pack = currentMap().get(globalKey);
+    if (pack) { Object.assign(pack, chosenPack); render(); }
+    else message('종류를 바꿀 팩을 클릭해 주세요.');
+    return;
+  }
+
   if (['drawing', 'start', 'destination'].includes(mode) && cellKind !== 'normal') {
     const previous = selected.get(key);
     selected.set(key, previous?.kind === cellKind ? { x, y } : { x, y, kind: cellKind });
@@ -539,6 +581,7 @@ board.addEventListener('click', event => {
     invalidate();
   } else if (mode === 'start' && selected.has(key)) {
     if (placements.get(globalKey)?.id === chosenPack.id) placements.delete(globalKey);
+    else if (placements.has(globalKey)) Object.assign(placements.get(globalKey), chosenPack);
     else placements.set(globalKey, { ...chosenPack, number: null });
     invalidate();
   } else if ((mode === 'numbering' || mode === 'destination-numbering') && currentMap().has(globalKey)) {
