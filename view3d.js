@@ -87,7 +87,7 @@ export function create3DView(container) {
     resources.forEach(resource => resource.dispose());
     group.clear();
   }
-  function setData(cells, placements, { preserveView = false, layers = [{ cells, placements, level: 0, active: true }] } = {}) {
+  function setData(cells, placements, { preserveView = false, traveller = null, layers = [{ cells, placements, level: 0, active: true }] } = {}) {
     clear();
     movingPacks.clear();
     const alignment = layers.flatMap(layer => layer.cells);
@@ -96,7 +96,12 @@ export function create3DView(container) {
     })));
     positions = new Map(model.map(item => [item.key, item]));
     stackScene(model, layers.every(layer => Number.isFinite(layer.elevation)) ? layers.map(layer => layer.elevation) : undefined);
+    if (traveller && positions.has(traveller.key)) {
+      const moving = { ...positions.get(traveller.key), pack: traveller.pack, elevation: traveller.elevation, traveller: true };
+      model.push(moving); positions.set(traveller.key, moving);
+    }
     for (const item of model) {
+      if (!item.traveller) {
       const baseGeometry = item.level > 0 ? new THREE.PlaneGeometry(4, 4) : new THREE.BoxGeometry(4, 0.18, 4);
       const base = new THREE.Mesh(baseGeometry,
         new THREE.MeshStandardMaterial({ color: 0xe2e8f0, roughness: 0.9,
@@ -115,6 +120,7 @@ export function create3DView(container) {
         fixed.position.set(item.x, item.elevation + 3, item.z); group.add(fixed);
         const mark = new THREE.Mesh(new THREE.PlaneGeometry(1.8, 1.8), new THREE.MeshBasicMaterial({ map: label('X', '#000000', true, true), transparent: true }));
         mark.rotation.x = -Math.PI / 2; mark.position.set(item.x, item.elevation + 6.01, item.z); group.add(mark);
+      }
       }
       if (item.pack) {
         const pack = item.pack;
@@ -137,6 +143,7 @@ export function create3DView(container) {
         group.add(inscription);
         movingPacks.set(item.key, { mesh, inscription });
       }
+      if (item.traveller) continue;
       // Keep floor numbers under occupied packs so moving away reveals the source.
       const number = new THREE.Mesh(new THREE.PlaneGeometry(2.8, item.kind === 'hole' ? 2.8 : 1.4),
         new THREE.MeshBasicMaterial({ map: label(item.kind === 'hole' ? 'H' : item.cellNumber, item.kind === 'hole' ? '#2563eb' : '#475569', item.kind === 'hole' || item.level > 0, item.kind === 'hole'), transparent: item.kind === 'hole' || item.level > 0, depthWrite: false }));
@@ -178,15 +185,23 @@ export function create3DView(container) {
     container.querySelector('.three-help').textContent = '3D 그래픽 연결이 끊겼습니다. 2D로 돌아가거나 화면을 새로고침해 주세요.';
   });
   renderer.domElement.addEventListener('webglcontextrestored', () => { contextLost = false; draw(); });
-  function movePack(from, to, progress) {
+  function movePack(from, to, progress, step = {}) {
     const moving = movingPacks.get(from);
     const start = positions.get(from), end = positions.get(to);
     if (!moving || !start || !end) return;
-    const endElevation = end.elevation;
+    const fromHeight = step.fromHeight ?? start.elevation;
+    const toHeight = step.toHeight ?? end.elevation;
+    let horizontal = progress, elevation = THREE.MathUtils.lerp(fromHeight, toHeight, progress);
+    if (step.over) {
+      const travel = step.travelHeight;
+      if (progress < .2) { horizontal = 0; elevation = THREE.MathUtils.lerp(fromHeight,travel,progress/.2); }
+      else if (progress < .8) { horizontal = (progress-.2)/.6; elevation = travel; }
+      else { horizontal = 1; elevation = THREE.MathUtils.lerp(travel,toHeight,(progress-.8)/.2); }
+    }
     for (const object of [moving.mesh, moving.inscription]) {
-      object.position.x = THREE.MathUtils.lerp(start.x, end.x, progress);
-      object.position.z = THREE.MathUtils.lerp(start.z, end.z, progress);
-      object.position.y = THREE.MathUtils.lerp(start.elevation, endElevation, progress) + (object === moving.mesh ? moving.mesh.geometry.parameters.height / 2 : moving.mesh.geometry.parameters.height + 0.005);
+      object.position.x = THREE.MathUtils.lerp(start.x, end.x, horizontal);
+      object.position.z = THREE.MathUtils.lerp(start.z, end.z, horizontal);
+      object.position.y = elevation + (object === moving.mesh ? moving.mesh.geometry.parameters.height / 2 : moving.mesh.geometry.parameters.height + 0.005);
     }
     draw();
   }

@@ -225,3 +225,13 @@ main:not([data-tool="none"]) { grid-template-columns: minmax(0, 1fr) 278px; }
 .shortcut-hint { font-size: 10px !important; margin: 5px 0 10px; color: #9099aa; }
 #import-route { display: block; width: 100%; padding: 10px; margin: 8px 0; border: 1px solid #cbd5e1; border-radius: 8px; font: 12px/1.5 monospace; resize: vertical; }
 @media (max-width:600px) { #map-tabs button { font-size: 10px; padding: 4px 7px; } .shortcut-hint { display: none; } #import-text { min-height: 100px; max-height: 34dvh; } }
+#settings-dialog { width: min(460px, calc(100% - 24px)); max-height: calc(100dvh - 24px); overflow: auto; border: 1px solid var(--line); border-radius: 14px; padding: 22px; }
+#settings-dialog::backdrop { background: #17203388; }
+.setting-choice { display: flex; gap: 12px; padding: 14px; margin: 10px 0; border: 1px solid var(--line); border-radius: 10px; cursor: pointer; }
+.setting-choice:has(input:checked) { border-color: var(--accent); background: #f6f4ff; }
+.setting-choice input { accent-color: var(--accent); }
+.setting-choice strong { display: block; font-size: 14px; }
+.setting-choice small { display: block; color: #748097; font-size: 12px; line-height: 1.6; margin-top: 5px; }
+#settings-dialog .actions { justify-content: flex-end; margin-top: 16px; }
+.pack-marker.passing-over { z-index: 4; outline: 2px solid #f59e0b; box-shadow: 0 4px 10px #0003; }
+.pack-marker.traveller { margin-top: calc(var(--cell-size) * -.38); font-size: calc(var(--cell-size) * .25); }

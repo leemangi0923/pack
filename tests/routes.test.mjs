@@ -21,10 +21,13 @@ test('rejects malformed input, missing cells, empty sources and occupied waypoin
   }
   assert.throws(() => prepareRoutes('[[0,1]]', [{ x: 0, y: 0 }, { x: 2, y: 0 }], start), /파레트에 없습니다/);
 });
-test('the supplied 14 routes preserve all packs without overwriting any', () => {
+test('the supplied 14 routes preserve all packs in climb mode', () => {
   const text = '[[9,8,18,16,11],[21,16,18,8,9],[19,16,21],[7,8,18,19],[23,18,17],[11,6,8,23],[3,18],[4,3,8,6,1],[5,8,3,4],[18,3],[15,16,6,8,18],[20,15,16,6,5],[17,15,20],[18,15]]';
   const start = new Map([9,21,19,7,23,3,4,5,15,20].map(number => [`${number},0`, { number }]));
-  const plan = prepareRoutes(text, cells, start);
+  const grid = Array.from({length:24},(_,i)=>({x:i%6,y:Math.floor(i/6)}));
+  const gridStart = new Map([...start].map(([key,pack])=>{const n=Number(key.split(',')[0]);return [`${n%6},${Math.floor(n/6)}`,pack]}));
+  assert.throws(()=>prepareRoutes(text, grid, gridStart), /부딪힘/);
+  const plan = prepareRoutes(text, grid, gridStart, 0, 'climb');
   assert.equal(plan.routes.length, 14);
   assert.equal(plan.result.size, start.size);
   assert.deepEqual(new Set(plan.result.values()), new Set(start.values()));

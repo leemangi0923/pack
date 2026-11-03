@@ -2,7 +2,7 @@ import { numberCells, layerOffsets } from './numbering.mjs';
 import { packs, packPreview } from './packs.mjs';
 import { nextPackKey } from './pack-order.mjs';
 import { parsePackLabel, symbolLabels } from './pack-labels.mjs';
-import { prepareRoutes } from './routes.mjs';
+import { prepareRoutes, routeState } from './routes.mjs';
 import { createRoutePlayer } from './route-player.mjs';
 import { SAVE_KEY } from './autosave.mjs';
 import { encodeUnified, decodeUnified, placeKey } from './unified-workspace.mjs';
@@ -48,6 +48,9 @@ const pauseRoute = document.querySelector('#route-pause');
 const previousStep = document.querySelector('#route-previous');
 const nextStep = document.querySelector('#route-next');
 let routePlanText = '';
+let transitPack = null;
+let collisionMode = 'stop';
+try { const saved = localStorage.getItem('pack.route-settings.v1'); if (saved === 'climb') collisionMode = saved; } catch {}
 let routeOpen = false;
 let playbackMap = null;
 let routePlan = null;
@@ -81,7 +84,7 @@ document.querySelector('#import-form').addEventListener('submit', event => {
   try {
     const state = importMaps(document.querySelector('#import-text').value);
     const routeText = document.querySelector('#import-route').value.trim();
-    if (routeText) prepareRoutes(routeText, state.layers.flatMap((layer,level)=>layer?[...layer.values()].map(cell=>({...cell,level})):[]), state.placements);
+    if (routeText) prepareRoutes(routeText, state.layers.flatMap((layer,level)=>layer?[...layer.values()].map(cell=>({...cell,level})):[]), state.placements, 0, collisionMode);
     state.routeText = routeText;
     restoreWorkspace(encodeUnified(state));
     message('목록으로 시작맵·도착맵을 만들었습니다. 팩 종류는 ‘팩 바꾸기’로 번호를 유지하며 수정할 수 있습니다.');
@@ -182,8 +185,7 @@ function restoreWorkspace(text) {
 }
 const routePlayer = createRoutePlayer({
   onSeek(count, steps) {
-    playbackMap = new Map(placements);
-    for (const step of steps.slice(0,count)) { playbackMap.delete(step.from); playbackMap.set(step.to,step.pack); }
+    const state = routeState(placements,steps,count); playbackMap = state.map; transitPack = state.traveller;
     routeFinished = count === steps.length && count > 0;
     if (!showing3D && steps.length) showLayer(Number((count ? steps[count-1].to : steps[0].from).split(',')[2]));
     render();
@@ -195,19 +197,21 @@ const routePlayer = createRoutePlayer({
     const tl=Number(step.to.split(',')[2]);
     if (!showing3D && activeLayer!==fl) { showLayer(fl);render(); }
     const [tx, ty] = step.to.split(',').map(Number);
-    const marker = board.querySelector(`[data-x="${fx}"][data-y="${fy}"] .pack-marker`);
+    const sourceCell = board.querySelector(`[data-x="${fx}"][data-y="${fy}"]`);
+    const marker = sourceCell?.querySelector('.pack-marker.traveller') ?? sourceCell?.querySelector('.pack-marker');
     marker?.parentElement.classList.toggle('moving-from', step.from !== step.to && progress > 0);
     const cellSize = parseFloat(board.style.getPropertyValue('--cell-size'));
     if (marker && activeLayer===fl) {
       marker.style.transform = `translate(${(tx - fx) * cellSize * progress}px, ${(ty - fy) * cellSize * progress}px)`;
       marker.style.zIndex = '3';
       marker.style.opacity=fl===tl?'1':String(1-progress*.7);
+      marker.classList.toggle('passing-over',!!step.over);
     }
-    if (showing3D) threeView?.movePack(step.from, step.to, progress);
+    if (showing3D) threeView?.movePack(step.from, step.to, progress, step);
     routeProgress.textContent = `경로 ${step.route + 1}/${routePlan.routes.length} · ${step.fromNumber} → ${step.toNumber} · 이동 ${index + 1}/${routePlan.steps.length}`;
   },
-  onStep(step) {
-    playbackMap.delete(step.from); playbackMap.set(step.to, step.pack);
+  onStep(step, index) {
+    const state = routeState(placements,routePlan.steps,index+1); playbackMap = state.map; transitPack = state.traveller;
     if(!showing3D)showLayer(Number(step.to.split(',')[2]));
     render();
   },
@@ -228,6 +232,22 @@ const routePlayer = createRoutePlayer({
     pauseRoute.textContent = running ? '일시정지' : '이어서 재생';
     routeInput.disabled = running;
   },
+});
+const settingsDialog = document.querySelector('#settings-dialog');
+for (const radio of settingsDialog.querySelectorAll('[name="collision-mode"]')) radio.checked = radio.value === collisionMode;
+document.querySelector('#open-settings').addEventListener('click', () => { routePlayer.pause(); settingsDialog.showModal(); });
+document.querySelector('#close-settings').addEventListener('click', () => settingsDialog.close());
+settingsDialog.addEventListener('change', event => {
+  if (event.target.name !== 'collision-mode') return;
+  collisionMode = event.target.value;
+  routePlayer.reset(); routePlan = null; transitPack = null; routeFinished = false;
+  previousStep.disabled = true; nextStep.disabled = false; pauseRoute.disabled = true; routeInput.disabled = false;
+  if (routeOpen) playbackMap = new Map(placements);
+  message('');
+  routeProgress.textContent = '설정이 변경되어 시작 상태로 돌아왔습니다. 재생 또는 다음 버튼으로 다시 확인하세요.';
+  try { localStorage.setItem('pack.route-settings.v1', collisionMode); document.querySelector('#settings-status').textContent = '설정을 저장했습니다.'; }
+  catch { document.querySelector('#settings-status').textContent = '현재 창에 적용했습니다. 브라우저에 저장할 수 없습니다.'; }
+  render();
 });
 document.querySelector('#route-position').addEventListener('input', event => {
   if (routePlan) routePlayer.seek(Number(event.target.value));
@@ -250,9 +270,9 @@ for (const [button, direction] of [[previousStep, 'back'], [nextStep, 'next']]) 
   button.addEventListener('click', () => {
     try {
       if (!routePlan || routeInput.value !== routePlanText) {
-        const plan = prepareRoutes(routeInput.value, allCells(), placements);
+        const plan = prepareRoutes(routeInput.value, allCells(), placements, 0, collisionMode);
         routePlayer.reset(); routePlan = plan; routePlanText = routeInput.value;
-        routeFinished = false; playbackMap = new Map(placements); routePlayer.load(plan.steps);
+        routeFinished = false; transitPack = null; playbackMap = new Map(placements); routePlayer.load(plan.steps);
       }
       message(''); routePlayer[direction]();
     } catch (error) { message(error.message); }
@@ -261,6 +281,7 @@ for (const [button, direction] of [[previousStep, 'back'], [nextStep, 'next']]) 
 
 function closeRoutes() {
   routePlayer.reset();
+  transitPack = null;
   routeOpen = false; playbackMap = null; routePlan = null; routeFinished = false;
   routeInput.disabled = false; pauseRoute.disabled = true;
   previousStep.disabled = true; nextStep.disabled = false;
@@ -273,8 +294,8 @@ addRoute.addEventListener('click', () => {
 });
 document.querySelector('#route-play').addEventListener('click', () => {
   try {
-    const plan = prepareRoutes(routeInput.value, allCells(), placements);
-    routePlayer.reset(); routePlan = plan; routePlanText = routeInput.value; routeFinished = false; playbackMap = new Map(placements);
+    const plan = prepareRoutes(routeInput.value, allCells(), placements, 0, collisionMode);
+    routePlayer.reset(); routePlan = plan; routePlanText = routeInput.value; routeFinished = false; transitPack = null; playbackMap = new Map(placements);
     message(''); render(); routePlayer.load(plan.steps); routePlayer.play();
   } catch (error) { message(error.message); }
 });
@@ -282,7 +303,7 @@ pauseRoute.addEventListener('click', () => {
   if (routePlayer.running) routePlayer.pause(); else routePlayer.play();
 });
 document.querySelector('#route-reset').addEventListener('click', () => {
-  routePlayer.reset(); routePlan = null; routeFinished = false; playbackMap = new Map(placements);
+  routePlayer.reset(); routePlan = null; routeFinished = false; transitPack = null; playbackMap = new Map(placements);
   pauseRoute.disabled = true; routeInput.disabled = false;
   previousStep.disabled = true; nextStep.disabled = false;
   routeProgress.textContent = '시작 위치로 돌아왔습니다. 입력 완료 · 재생을 눌러 다시 시작하세요.';
@@ -388,6 +409,9 @@ for (let y = 0; y < 40; y++) {
 board.append(fragment);
 
 function render() {
+  document.querySelector('#route-panel > p').textContent = collisionMode === 'climb'
+    ? '팩 위로 통과: 다른 팩은 그대로 두고 올라가 지나갑니다. 도착 칸은 비워 주세요.'
+    : '충돌 감지: 경로의 다른 팩과 겹치면 충돌 위치를 알려줍니다.';
   cellTools.hidden = !['drawing', 'start', 'destination'].includes(mode);
   for (const option of cellTools.querySelectorAll('button')) option.setAttribute('aria-pressed', String(option.dataset.kind === cellKind));
   const cellsByLayer = layerCells();
@@ -460,6 +484,12 @@ function render() {
         marker.title = `${pack.name} · 높이 ${pack.height}cm${pack.number === null ? '' : ` · ${pack.number}번`}`;
         cell.append(marker);
       }
+    }
+    if (transitPack?.key === globalKey && routeOpen) {
+      const moving = document.createElement('span');
+      moving.className = `pack-marker traveller passing-over ${transitPack.pack.shape}`;
+      moving.textContent = transitPack.pack.number ?? transitPack.pack.size;
+      moving.title = '다른 팩 위로 통과 중'; cell.append(moving);
     }
     cell.setAttribute('aria-pressed', String(active));
     cell.setAttribute('aria-label', `${Number(cell.dataset.y) + 1}행 ${Number(cell.dataset.x) + 1}열${active ? `, 칸 ${numbers.get(key)}번` : ''}${pack ? `, ${pack.name}, 높이 ${pack.height}cm, 팩 번호 ${pack.number ?? '미지정'}` : ''}`);
@@ -536,7 +566,7 @@ function render() {
     const sourceLayers = allLayers().map((layer,index)=>({cells:layer?[...layer.values()]:[],placements:localPacks(placements,index)}));
     const elevations = layerElevations(sourceLayers);
     const layers = allLayers().map((layer,index)=>({cells:layer?[...layer.values()]:[],placements:localPacks(currentMap(),index),level:index,offset:offsets[index],elevation:elevations[index],active:true}));
-    threeView.setData([...selected.values()], currentMap(), { preserveView: routeOpen, layers });
+    threeView.setData([...selected.values()], currentMap(), { preserveView: routeOpen, layers, traveller: transitPack });
   }
   fitBoard();
   scheduleSave();
