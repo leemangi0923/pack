@@ -36,12 +36,13 @@ export function createRoutePlayer({ onFrame, onStep, onComplete, onState, onSeek
       running = true; previous = null; onState(true); frame = requestAnimationFrame(tick);
     },
     pause,
+    seek,
     next() { seek(index + 1); },
     back() { seek(progress > 0 ? index : index - 1); },
     get position() { return index; },
     get progress() { return progress; },
     get length() { return steps.length; },
-    reset() { pause(); steps = []; index = 0; progress = 0; },
+    reset() { pause(); steps = []; index = 0; progress = 0; onState(false); },
     get running() { return running; },
   };
 }

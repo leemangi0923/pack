@@ -214,3 +214,14 @@ main:not([data-tool="none"]) { grid-template-columns: minmax(0, 1fr) 278px; }
 #import-form button[type="submit"] { background: var(--accent); color: white; }
 #import-error { color: #c44747; padding-top: 8px; }
 #replace-packs[aria-pressed="true"] { color: var(--accent); background: #f0edff; }
+#map-tabs { padding: 3px; border: 1px solid var(--line); border-radius: 8px; background: #fff; gap: 3px; }
+#map-tabs button { border: 0; box-shadow: none; padding: 5px 10px; min-height: 25px; }
+#map-tabs button[aria-pressed="true"] { background: #ece9ff; color: var(--accent); }
+.editor-actions:empty { display: none; }
+.step-scrubber { display: block; margin: 12px 0; }
+.step-scrubber > span { display: flex; align-items: center; justify-content: space-between; color: #68748b; }
+#route-count { font-variant-numeric: tabular-nums; color: var(--accent); }
+#route-position { display: block; width: 100%; margin: 10px 0; accent-color: var(--accent); cursor: pointer; }
+.shortcut-hint { font-size: 10px !important; margin: 5px 0 10px; color: #9099aa; }
+#import-route { display: block; width: 100%; padding: 10px; margin: 8px 0; border: 1px solid #cbd5e1; border-radius: 8px; font: 12px/1.5 monospace; resize: vertical; }
+@media (max-width:600px) { #map-tabs button { font-size: 10px; padding: 4px 7px; } .shortcut-hint { display: none; } #import-text { min-height: 100px; max-height: 34dvh; } }

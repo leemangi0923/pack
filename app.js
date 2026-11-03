@@ -80,9 +80,13 @@ document.querySelector('#import-form').addEventListener('submit', event => {
   event.preventDefault();
   try {
     const state = importMaps(document.querySelector('#import-text').value);
+    const routeText = document.querySelector('#import-route').value.trim();
+    if (routeText) prepareRoutes(routeText, state.layers.flatMap((layer,level)=>layer?[...layer.values()].map(cell=>({...cell,level})):[]), state.placements);
+    state.routeText = routeText;
     restoreWorkspace(encodeUnified(state));
     message('목록으로 시작맵·도착맵을 만들었습니다. 팩 종류는 ‘팩 바꾸기’로 번호를 유지하며 수정할 수 있습니다.');
     importDialog.close();
+    if (event.submitter?.dataset.openRoute) { routeOpen = true; playbackMap = new Map(placements); render(); routeInput.focus(); }
   } catch (error) { document.querySelector('#import-error').textContent = error.message; }
 });
 let replacePacks = false;
@@ -214,12 +218,33 @@ const routePlayer = createRoutePlayer({
     routeProgress.textContent = `모든 경로 이동 완료 · 이동 ${routePlan.steps.length}/${routePlan.steps.length}${destination.size ? matches ? ' · 도착맵과 일치합니다.' : ' · 결과가 도착맵과 다릅니다.' : ''}`;
   },
   onState(running) {
+    document.querySelector('#route-position').max = routePlayer.length;
+    document.querySelector('#route-position').value = routePlayer.position;
+    document.querySelector('#route-position').disabled = !routePlan || routePlayer.length === 0;
+    document.querySelector('#route-count').textContent = `${routePlayer.position} / ${routePlayer.length}`;
     previousStep.disabled = !routePlan || (routePlayer.position === 0 && routePlayer.progress === 0 && !running);
     nextStep.disabled = !!routePlan && routePlayer.position >= routePlayer.length;
     pauseRoute.disabled = !routePlan || routeFinished;
     pauseRoute.textContent = running ? '일시정지' : '이어서 재생';
     routeInput.disabled = running;
   },
+});
+document.querySelector('#route-position').addEventListener('input', event => {
+  if (routePlan) routePlayer.seek(Number(event.target.value));
+});
+document.addEventListener('keydown', event => {
+  if (!routeOpen || event.defaultPrevented || event.altKey || event.ctrlKey || event.metaKey || event.repeat || importDialog.open) return;
+  if (event.target.closest('input,textarea,select,[contenteditable="true"]') || (event.code === 'Space' && event.target.closest('button'))) return;
+  const button = event.key === 'ArrowLeft' ? previousStep : event.key === 'ArrowRight' ? nextStep
+    : event.code === 'Space' ? routePlan && !routeFinished ? pauseRoute : document.querySelector('#route-play') : null;
+  if (button && !button.disabled) { event.preventDefault(); button.click(); }
+});
+document.querySelector('#map-tabs').addEventListener('click', event => {
+  const button = event.target.closest('button[data-map]');
+  if (!button || button.disabled) return;
+  closeRoutes(); editingKey = null; editingPack = null;
+  mode = 'idle'; showingDestination = button.dataset.map === 'end';
+  message(''); render();
 });
 for (const [button, direction] of [[previousStep, 'back'], [nextStep, 'next']]) {
   button.addEventListener('click', () => {
@@ -466,11 +491,23 @@ function render() {
     if (step === currentStep) button.setAttribute('aria-current', 'step');
     else button.removeAttribute('aria-current');
   }
-  const activeAction = mode === 'drawing' ? toggle : mode === 'start' ? startMap
+  const activeAction = mode === 'replace' ? replaceButton : mode === 'idle' && numberingComplete && destination.size === placements.size ? addRoute
+    : mode === 'drawing' ? toggle : mode === 'start' ? startMap
     : mode === 'numbering' ? numberPacks : mode === 'destination' ? destinationButton
     : mode === 'destination-numbering' ? destinationNumbers
     : showingDestination ? destinationNumbers : numberingComplete ? destinationButton : placementComplete ? numberPacks : startMap;
   for (const button of document.querySelectorAll('.editor-actions > button')) button.classList.toggle('primary-action', button === activeAction);
+  for (const button of document.querySelectorAll('.editor-actions > button')) {
+    if (!button.hidden && button !== activeAction) button.hidden = true;
+  }
+  addRoute.classList.toggle('primary-action', activeAction === addRoute);
+  const mapTabs = document.querySelector('#map-tabs');
+  mapTabs.hidden = placements.size === 0 || mode !== 'idle';
+  for (const button of mapTabs.querySelectorAll('button')) {
+    button.disabled = button.dataset.map === 'end' && destination.size === 0;
+    button.setAttribute('aria-pressed', String((button.dataset.map === 'end') === showingDestination));
+  }
+  viewStart.hidden = true;
   document.querySelector('main').dataset.tool = mapping ? 'packs' : !dialog.hidden ? 'numbers' : routeOpen ? 'routes' : 'none';
   document.querySelector('#pack-panel h2').textContent = replacePacks ? '팩 종류 바꾸기 · 번호 유지' : showingDestination ? '도착맵 만들기' : '시작맵 만들기';
   document.querySelector('#pack-panel > p').textContent = replacePacks
