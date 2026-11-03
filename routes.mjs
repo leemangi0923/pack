@@ -1,5 +1,5 @@
 import { numberCells, layerOffsets } from './numbering.mjs';
-import { layerElevations } from './scene-model.mjs';
+import { layerElevations, stackScene } from './scene-model.mjs';
 
 function intersects(a, b, center, radius) {
   let enter = 0, leave = 1;
@@ -28,7 +28,11 @@ export function prepareRoutes(text, cells, startMap, offset = 0, collisionMode =
   const numbers = new Map([...positions].map(([n,key]) => [key,n]));
   const kinds = new Map(cells.map(c => [keyOf(c),c.kind]));
   const elevations = layerElevations([0,1,2].map(level => ({cells:cells.filter(c => (c.level??0)===level),placements:new Map([...startMap].filter(([key]) => (Number(key.split(',')[2])||0)===level))})));
-  const base = key => elevations[Number(key.split(',')[2])||0];
+  const makeModel = state => cells.map(cell=>({...cell,key:keyOf(cell),z:cell.y,level:cell.level??0,pack:state.get(keyOf(cell))}));
+  const reference = new Map(stackScene(makeModel(startMap),elevations).map(item=>[item.key,item.elevation]));
+  const getBases = state => new Map(stackScene(makeModel(state),elevations,reference).map(item=>[item.key,item.elevation]));
+  let bases = getBases(startMap);
+  const base = key => bases.get(key) ?? elevations[Number(key.split(',')[2])||0];
   const center = (key,height) => { const [x,y] = key.split(',').map(Number); return [x*4,height,y*4]; };
   const result = new Map(startMap), steps = [];
   const climb = collisionMode === 'climb';
@@ -39,11 +43,13 @@ export function prepareRoutes(text, cells, startMap, offset = 0, collisionMode =
     for (const n of route) if (!positions.has(n)) throw new Error(`${index+1}번째 경로의 ${n}번 위치는 파레트에 없습니다.`);
     const final = positions.get(route.at(-1));
     if (kinds.get(final)==='hole') throw new Error(`${route.at(-1)}번 위치는 H 홀이므로 이동을 끝낼 수 없습니다.`);
+    bases = getBases(result);
     let from = positions.get(route[0]), fromHeight = base(from);
     const pack = result.get(from);
     if (!pack) throw new Error(`${index+1}번째 경로의 출발 위치 ${route[0]}번에 팩이 없습니다.`);
     const height = pack.height ?? 4;
     for (let i=1;i<route.length;i++) {
+      bases = getBases(result);
       const to = positions.get(route[i]), occupant = result.get(to);
       const fixed = ['fixed','fixed-circle'].includes(kinds.get(to));
       const occupied = fixed || (occupant && occupant!==pack);

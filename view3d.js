@@ -87,7 +87,7 @@ export function create3DView(container) {
     resources.forEach(resource => resource.dispose());
     group.clear();
   }
-  function setData(cells, placements, { preserveView = false, traveller = null, layers = [{ cells, placements, level: 0, active: true }] } = {}) {
+  function setData(cells, placements, { preserveView = false, traveller = null, referenceLayers = null, layers = [{ cells, placements, level: 0, active: true }] } = {}) {
     clear();
     movingPacks.clear();
     const alignment = layers.flatMap(layer => layer.cells);
@@ -95,7 +95,10 @@ export function create3DView(container) {
       ...item, key: `${item.key},${layer.level}`, level: layer.level, elevation: 0,
     })));
     positions = new Map(model.map(item => [item.key, item]));
-    stackScene(model, layers.every(layer => Number.isFinite(layer.elevation)) ? layers.map(layer => layer.elevation) : undefined);
+    const elevations = layers.every(layer => Number.isFinite(layer.elevation)) ? layers.map(layer => layer.elevation) : undefined;
+    const referenceModel = referenceLayers ? referenceLayers.flatMap((layer,level)=>sceneModel(layer.cells,layer.placements,alignment).map(item=>({...item,key:`${item.key},${level}`,level}))) : [];
+    stackScene(referenceModel,elevations);
+    stackScene(model,elevations,new Map(referenceModel.map(item=>[item.key,item.elevation])));
     if (traveller && positions.has(traveller.key)) {
       const moving = { ...positions.get(traveller.key), pack: traveller.pack, elevation: traveller.elevation, traveller: true };
       model.push(moving); positions.set(traveller.key, moving);

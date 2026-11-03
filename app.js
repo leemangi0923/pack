@@ -567,7 +567,7 @@ function render() {
     const sourceLayers = allLayers().map((layer,index)=>({cells:layer?[...layer.values()]:[],placements:localPacks(placements,index)}));
     const elevations = layerElevations(sourceLayers);
     const layers = allLayers().map((layer,index)=>({cells:layer?[...layer.values()]:[],placements:localPacks(currentMap(),index),level:index,offset:offsets[index],elevation:elevations[index],active:true}));
-    threeView.setData([...selected.values()], currentMap(), { preserveView: routeOpen, layers, traveller: transitPack });
+    threeView.setData([...selected.values()], currentMap(), { preserveView: routeOpen, layers, referenceLayers: sourceLayers, traveller: transitPack });
   }
   fitBoard();
   scheduleSave();

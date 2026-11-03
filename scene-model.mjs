@@ -11,13 +11,18 @@ export function layerElevations(layers) {
   });
 }
 
-export function stackScene(model, elevations) {
+export function stackScene(model, elevations, reference = new Map()) {
   elevations ??= layerElevations([0, 1, 2].map(level => ({
     cells: model.filter(item => (item.level ?? 0) === level),
     placements: new Map(model.filter(item => (item.level ?? 0) === level && item.pack).map((item, i) => [i, item.pack])),
   })));
-  for (const item of model) {
-    item.elevation = elevations[item.level ?? 0];
+  const columns = new Map();
+  for (const item of [...model].sort((a,b)=>(a.level??0)-(b.level??0))) {
+    const level = item.level ?? 0;
+    const below = columns.get(`${item.x},${item.z},${level-1}`);
+    const height = below?.pack?.height ?? (['fixed','fixed-circle'].includes(below?.kind) ? 6 : 0);
+    item.elevation = level === 0 ? 0 : height ? below.elevation + height : reference.get(item.key) ?? elevations[level];
+    columns.set(`${item.x},${item.z},${level}`, item);
   }
   return model;
 }
