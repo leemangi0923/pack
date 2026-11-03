@@ -48,3 +48,20 @@ test('previous and next seek to exact boundaries and resume from the inspected s
  player.next();assert.equal(player.position,3);player.back();assert.equal(player.position,2);
  player.play();assert.equal(scheduled.size,1);player.reset();assert.equal(scheduled.size,0);
 });
+
+test('animated steps show intermediate positions and reverse one segment then stop', t => {
+ const scheduled=new Map();let id=0;
+ globalThis.requestAnimationFrame=fn=>{scheduled.set(++id,fn);return id};
+ globalThis.cancelAnimationFrame=id=>scheduled.delete(id);
+ t.after(()=>{delete globalThis.requestAnimationFrame;delete globalThis.cancelAnimationFrame});
+ const frame=time=>{const callbacks=[...scheduled.values()];scheduled.clear();callbacks.forEach(fn=>fn(time))};
+ const frames=[],landings=[],seeks=[];
+ const player=createRoutePlayer({onFrame:(s,p)=>frames.push([s.from,s.to,p,s.fromHeight,s.toHeight]),onStep:s=>landings.push(s.to),onSeek:n=>seeks.push(n),onState:()=>{},onComplete:()=>{}});
+ player.load([{from:'a',to:'b',fromHeight:0,toHeight:5},{from:'b',to:'c',fromHeight:5,toHeight:5}]);
+ player.animateNext();assert.equal(player.position,0);frame(0);frame(325);
+ assert.deepEqual(frames.at(-1),['a','b',.5,0,5]);assert.deepEqual(landings,[]);
+ frame(650);assert.equal(player.position,1);assert.equal(player.running,false);assert.equal(scheduled.size,0);
+ player.animateBack();assert.equal(player.position,1);frame(1000);frame(1325);
+ assert.deepEqual(frames.at(-1),['b','a',.5,5,0]);frame(1650);
+ assert.equal(player.position,0);assert.equal(player.running,false);assert.deepEqual(seeks,[0]);
+});

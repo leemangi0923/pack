@@ -228,7 +228,8 @@ const routePlayer = createRoutePlayer({
     document.querySelector('#route-count').textContent = `${routePlayer.position} / ${routePlayer.length}`;
     previousStep.disabled = !routePlan || (routePlayer.position === 0 && routePlayer.progress === 0 && !running);
     nextStep.disabled = !!routePlan && routePlayer.position >= routePlayer.length;
-    pauseRoute.disabled = !routePlan || routeFinished;
+    if (running && routePlayer.stepping) { previousStep.disabled = true; nextStep.disabled = true; }
+    pauseRoute.disabled = !routePlan || (routeFinished && !running);
     pauseRoute.textContent = running ? '일시정지' : '이어서 재생';
     routeInput.disabled = running;
   },
@@ -266,7 +267,7 @@ document.querySelector('#map-tabs').addEventListener('click', event => {
   mode = 'idle'; showingDestination = button.dataset.map === 'end';
   message(''); render();
 });
-for (const [button, direction] of [[previousStep, 'back'], [nextStep, 'next']]) {
+for (const [button, direction] of [[previousStep, 'animateBack'], [nextStep, 'animateNext']]) {
   button.addEventListener('click', () => {
     try {
       if (!routePlan || routeInput.value !== routePlanText) {
