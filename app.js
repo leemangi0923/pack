@@ -1,3 +1,4 @@
+import { motionDuration } from './motion-timing.mjs';
 import { poseOf, footprint, uniquePacks, normalizeLayouts, changePackType } from './lying-packs.mjs';
 import { swapFloors, swapFloorKey } from './swap-floors.mjs';
 import { numberCells, layerOffsets } from './numbering.mjs';
@@ -53,6 +54,8 @@ const previousStep = document.querySelector('#route-previous');
 const nextStep = document.querySelector('#route-next');
 let routePlanText = '';
 let transitPack = null;
+let secondsPerCell = 1;
+try {const value=Number(localStorage.getItem('pack.seconds-per-cell'));if(value>=.1&&value<=10)secondsPerCell=value;}catch{}
 let collisionMode = 'stop';
 try { const saved = localStorage.getItem('pack.route-settings.v1'); if (saved === 'climb') collisionMode = saved; } catch {}
 let routeOpen = false;
@@ -207,6 +210,9 @@ function restoreWorkspace(text) {
   }
 }
 const routePlayer = createRoutePlayer({
+  getDuration: step=>motionDuration(step,secondsPerCell),
+  getDelay: (last,next)=>last.route!==next.route?500:0,
+  onWait: remaining=>{routeProgress.textContent=`다음 팩 이동 준비 · ${(remaining/1000).toFixed(1)}초`;},
   onSeek(count, steps) {
     const state = routeState(placements,steps,count); playbackMap = state.map; transitPack = state.traveller;
     routeFinished = count === steps.length && count > 0;
@@ -258,6 +264,8 @@ const routePlayer = createRoutePlayer({
   },
 });
 const settingsDialog = document.querySelector('#settings-dialog');
+const speedInput=document.querySelector('#seconds-per-cell');speedInput.value=secondsPerCell;
+speedInput.addEventListener('change',()=>{const value=Number(speedInput.value);if(!Number.isFinite(value)||value<.1||value>10){speedInput.value=secondsPerCell;return;}routePlayer.pause();secondsPerCell=value;try{localStorage.setItem('pack.seconds-per-cell',String(value));}catch{}document.querySelector('#settings-status').textContent=`한 칸당 ${value}초로 적용했습니다.`;});
 for (const radio of settingsDialog.querySelectorAll('[name="collision-mode"]')) radio.checked = radio.value === collisionMode;
 document.querySelector('#open-settings').addEventListener('click', () => { routePlayer.pause(); settingsDialog.showModal(); });
 document.querySelector('#close-settings').addEventListener('click', () => settingsDialog.close());

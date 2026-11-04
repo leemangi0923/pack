@@ -8,7 +8,7 @@
 </head>
 <body>
   <header class="app-header">
-    <div class="brand"><span class="brand-mark" aria-hidden="true">▦</span><div><h1>파레트 스튜디오 <span class="version" aria-label="현재 버전 1.11.0">v1.11.0</span><time id="release-date" class="release-date" datetime="2026-11-04T11:58:00+09:00" title="업데이트 시각 · 한국시간(KST)">2026-11-04 11:58</time></h1><span class="brand-caption">파레트 설계 · 배치 · 이동 시뮬레이션</span></div></div>
+    <div class="brand"><span class="brand-mark" aria-hidden="true">▦</span><div><h1>파레트 스튜디오 <span class="version" aria-label="현재 버전 1.12.0">v1.12.0</span><time id="release-date" class="release-date" datetime="2026-11-04T14:00:00+09:00" title="업데이트 시각 · 한국시간(KST)">2026-11-04 14:00</time></h1><span class="brand-caption">파레트 설계 · 배치 · 이동 시뮬레이션</span></div></div>
     <div class="actions"><button id="open-settings" type="button">설정</button><button id="open-import" type="button">리스트로 맵 만들기</button><button id="load-previous" type="button">전 내용 불러오기</button><span id="save-status" role="status" aria-live="polite" title="현재 브라우저에 자동 저장됩니다.">새 작업</span></div>
   </header>
   <nav id="workflow" aria-label="작업 단계">
@@ -64,7 +64,7 @@
           <button id="three-in" type="button" aria-label="3D 확대">＋</button>
           <button id="three-out" type="button" aria-label="3D 축소">−</button>
         </div>
-        <p class="three-help">드래그: 회전 · 휠/두 손가락: 확대 · 방향키: 회전</p>
+        <p class="three-help">드래그: 회전 · 휠: 확대 · 휠 누르고 드래그: 시점 이동</p>
       </section>
     </div>
     <div class="workspace-footer"><p id="instruction">칸을 클릭해 그리거나 지울 수 있습니다. 빈칸도 번호에 포함됩니다.</p><span class="color-legend"><i class="red-dot"></i>사각팩 <i class="blue-dot"></i>원형팩</span></div>
@@ -102,7 +102,7 @@ e=[
     </form>
   </dialog>
   <dialog id="settings-dialog" aria-labelledby="settings-title">
-    <h2 id="settings-title">경로 충돌 설정</h2>
+    <h2 id="settings-title">이동 설정</h2><label class="speed-setting" for="seconds-per-cell">한 칸 이동 시간 <input id="seconds-per-cell" type="number" min="0.1" max="10" step="0.1" value="1"> 초</label><p>거리가 3칸이면 3배 걸립니다. 한 팩의 경로가 끝나면 0.5초 쉬고 다음 경로를 시작합니다.</p>
     <label class="setting-choice"><input type="radio" name="collision-mode" value="stop" checked><span><strong>충돌 감지</strong><small>경로에 다른 팩이 있으면 ‘부딪힘이 감지되었습니다’ 메시지로 위치를 알려줍니다.</small></span></label>
     <label class="setting-choice"><input type="radio" name="collision-mode" value="climb"><span><strong>팩 위로 통과</strong><small>막고 있는 팩은 그대로 두고 그 위로 올라가 지나갑니다. 최종 도착 칸은 비어 있어야 합니다.</small></span></label>
     <p id="settings-status" role="status">재생 전에 경로 전체를 검사합니다. 설정 변경 시 경로는 시작 상태로 돌아갑니다.</p>

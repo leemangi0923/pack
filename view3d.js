@@ -19,7 +19,8 @@ export function create3DView(container) {
   controls.maxPolarAngle = Math.PI / 2 - 0.02;
   controls.minDistance = 1;
   controls.maxDistance = 1000;
-  controls.enablePan = false;
+  controls.enablePan = true;
+  controls.mouseButtons = { LEFT: THREE.MOUSE.ROTATE, MIDDLE: THREE.MOUSE.PAN, RIGHT: THREE.MOUSE.ROTATE };
   const group = new THREE.Group();
   scene.add(group);
   let radius = 5;
@@ -29,6 +30,7 @@ export function create3DView(container) {
   const movingPacks = new Map();
   let positions = new Map();
   let initialized = false;
+  const labelTextures = new Map();
 
   function draw() {
     if (visible && !contextLost) renderer.render(scene, camera);
@@ -59,7 +61,9 @@ export function create3DView(container) {
     reset();
   }
   new ResizeObserver(resize).observe(container);
-  function label(text, color, transparent = false, square = false) {
+  function label(text, color, transparent = false, square = false, outlined = false) {
+    const cacheKey = JSON.stringify([String(text),color,transparent,square,outlined]);
+    if (labelTextures.has(cacheKey)) return labelTextures.get(cacheKey);
     const canvas = document.createElement('canvas');
     canvas.width = 512; canvas.height = square ? 512 : 256;
     const context = canvas.getContext('2d');
@@ -70,9 +74,11 @@ export function create3DView(container) {
     context.fillStyle = color;
     context.font = `bold ${square ? 440 : 110}px system-ui`;
     context.textAlign = 'center'; context.textBaseline = 'middle';
+    if(outlined){context.strokeStyle='#1e293b';context.lineWidth=12;context.strokeText(String(text),256,canvas.height/2,480);}
     context.fillText(String(text), 256, canvas.height / 2, 480);
     const texture = new THREE.CanvasTexture(canvas);
     texture.colorSpace = THREE.SRGBColorSpace;
+    labelTextures.set(cacheKey,texture);
     return texture;
   }
   function clear() {
@@ -81,7 +87,6 @@ export function create3DView(container) {
       if (object.geometry) resources.add(object.geometry);
       if (object.material) {
         resources.add(object.material);
-        if (object.material.map) resources.add(object.material.map);
       }
     });
     resources.forEach(resource => resource.dispose());
@@ -146,7 +151,17 @@ export function create3DView(container) {
         inscription.rotation.x = -Math.PI / 2;
         inscription.position.set(mesh.position.x, item.elevation + pack.height + 0.005, mesh.position.z);
         group.add(inscription);
-        movingPacks.set(item.key, { mesh, inscription });
+        const sideLabels=[];
+        const depth=pack.lying&&item.axis==='y'?3:1;
+        const width=pack.lying&&item.axis==='x'?3:1;
+        for(const [dx,dz,angle]of[[0,depth+.01,0],[0,-depth-.01,Math.PI],[width+.01,0,Math.PI/2],[-width-.01,0,-Math.PI/2]]){
+          const side=new THREE.Mesh(new THREE.PlaneGeometry(1.5,1),new THREE.MeshBasicMaterial({map:label(pack.number??pack.size,'#fff',true),transparent:true,depthWrite:false}));
+          side.rotation.y=angle;side.position.set(mesh.position.x+dx,mesh.position.y,mesh.position.z+dz);group.add(side);sideLabels.push(side);
+        }
+        const visibleLabel=new THREE.Sprite(new THREE.SpriteMaterial({map:label(pack.number??pack.size,'#fff',true,false,true),depthTest:false,depthWrite:false,transparent:true}));
+        visibleLabel.name='visible-pack-number';visibleLabel.scale.set(1.25,.62,1);visibleLabel.renderOrder=10;
+        visibleLabel.position.set(mesh.position.x+((item.level??0)-1)*.7,mesh.position.y,mesh.position.z+depth+.05);group.add(visibleLabel);sideLabels.push(visibleLabel);
+        movingPacks.set(item.key, { mesh, inscription, sideLabels });
       }
       if (item.traveller) continue;
       // Keep floor numbers under occupied packs so moving away reveals the source.
@@ -157,6 +172,9 @@ export function create3DView(container) {
 
       group.add(number);
     }
+    const activeTextures = new Set();
+    group.traverse(object => { if(object.material?.map)activeTextures.add(object.material.map); });
+    for(const [key,texture]of labelTextures)if(!activeTextures.has(texture)){texture.dispose();labelTextures.delete(key);}
     const bounds = new THREE.Box3().setFromObject(group);
     if (!bounds.isEmpty()) {
       const sphere = bounds.getBoundingSphere(new THREE.Sphere());
@@ -203,11 +221,14 @@ export function create3DView(container) {
       else if (progress < .8) { horizontal = (progress-.2)/.6; elevation = travel; }
       else { horizontal = 1; elevation = THREE.MathUtils.lerp(travel,toHeight,(progress-.8)/.2); }
     }
+    const previousPosition=moving.mesh.position.clone();
     for (const object of [moving.mesh, moving.inscription]) {
       object.position.x = THREE.MathUtils.lerp(start.x, end.x, horizontal)+(moving.mesh.userData.axis==='x'?2:0);
       object.position.z = THREE.MathUtils.lerp(start.z, end.z, horizontal)+(moving.mesh.userData.axis==='y'?2:0);
       object.position.y = elevation + (object === moving.mesh ? moving.mesh.userData.packHeight / 2 : moving.mesh.userData.packHeight + 0.005);
     }
+    const delta=moving.mesh.position.clone().sub(previousPosition);
+    for(const label of moving.sideLabels)label.position.add(delta);
     draw();
   }
   return { setData, reset, zoom, movePack, setVisible(value) { if (visible === value) return; visible = value; if (value) resize(); } };
