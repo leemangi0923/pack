@@ -68,7 +68,7 @@ export function create3DView(container) {
       context.fillRect(0, 0, canvas.width, canvas.height);
     }
     context.fillStyle = color;
-    context.font = `bold ${square ? 440 : 180}px system-ui`;
+    context.font = `bold ${square ? 440 : 110}px system-ui`;
     context.textAlign = 'center'; context.textBaseline = 'middle';
     context.fillText(String(text), 256, canvas.height / 2, 480);
     const texture = new THREE.CanvasTexture(canvas);
@@ -150,7 +150,7 @@ export function create3DView(container) {
       }
       if (item.traveller) continue;
       // Keep floor numbers under occupied packs so moving away reveals the source.
-      const number = new THREE.Mesh(new THREE.PlaneGeometry(2.8, item.kind === 'hole' ? 2.8 : 1.4),
+      const number = new THREE.Mesh(new THREE.PlaneGeometry(1.8, item.kind === 'hole' ? 1.8 : .9),
         new THREE.MeshBasicMaterial({ map: label(item.kind === 'hole' ? 'H' : item.cellNumber, item.kind === 'hole' ? '#2563eb' : '#475569', item.kind === 'hole' || item.level > 0, item.kind === 'hole'), transparent: item.kind === 'hole' || item.level > 0, depthWrite: false }));
       number.rotation.x = -Math.PI / 2;
       number.position.set(item.x, item.elevation + 0.01, item.z);

@@ -10,7 +10,9 @@ import { encodeUnified, decodeUnified, placeKey } from './unified-workspace.mjs'
 import { importMaps } from './map-import.mjs';
 import { layerElevations } from './scene-model.mjs';
 
-const board = document.querySelector('#board');
+const boards = document.querySelector('#boards');
+const floorBoards = [...document.querySelectorAll('.layer-board')];
+let board = floorBoards[0];
 const toggle = document.querySelector('#toggle');
 const status = document.querySelector('#status');
 const instruction = document.querySelector('#instruction');
@@ -111,7 +113,7 @@ function layerCells() { return allLayers().map(layer=>layer?[...layer.values()]:
 function allCells() { return layerCells().flatMap((cells,level)=>cells.map(cell=>({...cell,level}))); }
 function localPacks(map,level) { return new Map([...map].filter(([key])=>Number(key.split(',')[2])===level).map(([key,p])=>[key.split(',').slice(0,2).join(','),p])); }
 function showLayer(next) {
-  finishStroke(); layerSnapshots[activeLayer]=new Map(selected); activeLayer=next;
+  finishStroke(); layerSnapshots[activeLayer]=new Map(selected); activeLayer=next; board=floorBoards[next];
   let layer=layerSnapshots[next];
   if(!layer){
     layer=new Map([...(layerSnapshots[next-1]??selected)].map(([key,{x,y}])=>[key,{x,y}]));
@@ -161,7 +163,7 @@ function restoreWorkspace(text) {
     catch {localStorage.setItem(`${SAVE_KEY}.backup`,text);message('저장 데이터를 복원하지 못했습니다. 기존 데이터는 백업했습니다.');return;}
     clearTimeout(saveTimer);
     closeRoutes(); showing3D = false; editingKey = null; editingPack = null;
-    activeLayer=restored.activeLayer;layerSnapshots=restored.layers;
+    activeLayer=restored.activeLayer;board=floorBoards[activeLayer];layerSnapshots=restored.layers;
     selected.clear();for(const[k,c]of restored.layers[activeLayer])selected.set(k,c);
     placements.clear();for(const[k,p]of restored.placements)placements.set(k,p);
     destination.clear();for(const[k,p]of restored.destination)destination.set(k,p);
@@ -352,7 +354,9 @@ function advanceNumberPanel() {
 
 function fitBoard() {
   if (dragStroke) return;
-  const cells = [...selected.values()];
+  for (const [level, currentBoard] of floorBoards.entries()) {
+  const layer=allLayers()[level];if(!layer)continue;
+  const cells = [...layer.values()];
   const drawing = mode === 'drawing';
   const padding = drawing ? 2 : 0;
   const minX = cells.length ? Math.max(0, Math.min(...cells.map(cell => cell.x)) - padding) : 0;
@@ -363,16 +367,17 @@ function fitBoard() {
   const rows = Math.max(drawing ? 8 : 1, maxY - minY + 1);
   const left = Math.min(minX, 40 - columns);
   const top = Math.min(minY, 40 - rows);
-  const viewport = document.querySelector('.viewport');
+  const viewport = currentBoard.parentElement;
   const size = Math.max(1, Math.min(80, (viewport.clientWidth - 16) / columns, (viewport.clientHeight - 16) / rows));
-  board.style.setProperty('--cell-size', `${size}px`);
-  board.style.gridTemplateColumns = `repeat(${columns}, var(--cell-size))`;
-  board.style.width = `${size * columns}px`;
-  board.style.height = `${size * rows}px`;
-  for (const cell of board.children) {
+  currentBoard.style.setProperty('--cell-size', `${size}px`);
+  currentBoard.style.gridTemplateColumns = `repeat(${columns}, var(--cell-size))`;
+  currentBoard.style.width = `${size * columns}px`;
+  currentBoard.style.height = `${size * rows}px`;
+  for (const cell of currentBoard.children) {
     const x = Number(cell.dataset.x);
     const y = Number(cell.dataset.y);
     cell.hidden = x < left || x >= left + columns || y < top || y >= top + rows;
+  }
   }
 }
 
@@ -401,6 +406,7 @@ for (const pack of packs) {
   option.addEventListener('click', () => { chosenPack = pack; cellKind = 'normal'; message(''); render(); });
   packOptions.append(option);
 }
+for (const [level,currentBoard] of floorBoards.entries()) {
 const fragment = document.createDocumentFragment();
 for (let y = 0; y < 40; y++) {
   for (let x = 0; x < 40; x++) {
@@ -408,11 +414,13 @@ for (let y = 0; y < 40; y++) {
     cell.type = 'button';
     cell.className = 'cell';
     cell.dataset.x = x;
+    cell.dataset.level = level;
     cell.dataset.y = y;
     fragment.append(cell);
   }
 }
-board.append(fragment);
+currentBoard.append(fragment);
+}
 
 function render() {
   document.querySelector('#route-panel > p').textContent = collisionMode === 'climb'
@@ -447,18 +455,25 @@ function render() {
   view3DButton.textContent = showing3D ? '2D로 보기' : '3D로 보기';
   view3DButton.setAttribute('aria-pressed', String(showing3D));
   threeContainer.hidden = !showing3D;
-  board.hidden = showing3D;
+  boards.hidden = showing3D;
+  for(const [level,currentBoard]of floorBoards.entries()){
+    currentBoard.closest('.floor-pane').hidden = !allLayers()[level];
+    currentBoard.closest('.floor-pane').classList.toggle('active-floor',level===activeLayer);
+  }
+  boards.style.setProperty('--floor-count',allLayers().filter(Boolean).length);
   threeView?.setVisible(showing3D);
   if (!numbering) { editingKey = null; editingPack = null; }
   dialog.hidden = !numbering || editingKey === null;
   const map = currentMap();
-  const numbers = numberCells([...selected.values()], offsets[activeLayer]);
-  for (const cell of board.children) {
+  for(const [level,currentBoard]of floorBoards.entries()){
+  const layer=allLayers()[level];if(!layer)continue;
+  const numbers = numberCells([...layer.values()], offsets[level]);
+  for (const cell of currentBoard.children) {
     const key = `${cell.dataset.x},${cell.dataset.y}`;
-    const active = selected.has(key);
-    const globalKey=placeKey(key,activeLayer);
+    const active = layer.has(key);
+    const globalKey=placeKey(key,level);
     const pack = map.get(globalKey);
-    const kind = selected.get(key)?.kind;
+    const kind = layer.get(key)?.kind;
     cell.classList.toggle('selected', active);
     cell.classList.toggle('occupied', Boolean(pack) || Boolean(kind));
     cell.classList.remove('moving-from');
@@ -468,8 +483,8 @@ function render() {
       const number = document.createElement('span');
       number.className = 'cell-number';
       number.textContent = numbers.get(key);
-      number.style.setProperty('--number-size', Math.min(0.52, 1.45 / String(numbers.get(key)).length));
-      number.style.setProperty('--corner-size', Math.min(0.24, 0.9 / String(numbers.get(key)).length));
+      number.style.setProperty('--number-size', Math.min(0.28, 0.8 / String(numbers.get(key)).length));
+      number.style.setProperty('--corner-size', Math.min(0.17, 0.55 / String(numbers.get(key)).length));
       cell.append(number);
       if (kind) {
         const special = document.createElement('span');
@@ -484,7 +499,7 @@ function render() {
         marker.className = `pack-marker ${pack.shape}${pack.lying?` lying lying-${pose.axis}`:''}`;
         const label = document.createElement('span');
         label.textContent = pack.number ?? pack.size;
-        label.style.setProperty('--pack-label-size', Math.min(0.34, 0.7 / String(pack.number ?? pack.size).length));
+        label.style.setProperty('--pack-label-size', Math.min(0.22, 0.48 / String(pack.number ?? pack.size).length));
         const size = document.createElement('small');
         size.textContent = pack.number === null ? '' : pack.size;
         marker.append(label, size);
@@ -503,7 +518,8 @@ function render() {
     cell.disabled = !drawing && !(active && (mapping || ((mode === 'numbering' || mode === 'destination-numbering') && pack)));
     if (kind) cell.setAttribute('aria-label', `${cell.getAttribute('aria-label')}, ${kind === 'hole' ? 'H 홀, 통과 가능 배치 불가' : 'X 대형 고정팩'}`);
   }
-  board.classList.toggle('finished', !drawing);
+  currentBoard.classList.toggle('finished', !drawing);
+  }
   toggle.textContent = drawing ? '파레트 그리기 종료' : '파레트 다시 그리기';
   toggle.setAttribute('aria-pressed', String(drawing));
   startMap.hidden = drawing || selected.size === 0;
@@ -614,18 +630,20 @@ document.querySelector('#three-reset').addEventListener('click', () => threeView
 document.querySelector('#three-in').addEventListener('click', () => threeView?.zoom(0.8));
 document.querySelector('#three-out').addEventListener('click', () => threeView?.zoom(1.25));
 
-board.addEventListener('pointerdown', event => {
+boards.addEventListener('pointerdown', event => {
   suppressDragClick = false;
   if (mode !== 'drawing' || cellKind !== 'normal' || event.button !== 0 || !event.isPrimary) return;
   const cell = event.target.closest('.cell');
   if (!cell) return;
+  const clickedLevel=Number(cell.dataset.level);
+  if(clickedLevel!==activeLayer)showLayer(clickedLevel);
   dragStroke = {
     pointerId: event.pointerId, startX: event.clientX, startY: event.clientY,
     previous: { x: Number(cell.dataset.x), y: Number(cell.dataset.y) },
     dragged: false,
   };
 });
-board.addEventListener('pointermove', event => {
+boards.addEventListener('pointermove', event => {
   if (!dragStroke || event.pointerId !== dragStroke.pointerId || mode !== 'drawing') return;
   if (!(event.buttons & 1)) { finishStroke(); return; }
   const rect = board.getBoundingClientRect();
@@ -657,16 +675,18 @@ function finishStroke() {
   if (board.hasPointerCapture(pointerId)) board.releasePointerCapture(pointerId);
   fitBoard();
 }
-board.addEventListener('pointerup', finishStroke);
+boards.addEventListener('pointerup', finishStroke);
 window.addEventListener('pointerup', finishStroke);
-board.addEventListener('pointercancel', finishStroke);
-board.addEventListener('lostpointercapture', finishStroke);
+boards.addEventListener('pointercancel', finishStroke);
+boards.addEventListener('lostpointercapture', finishStroke);
 window.addEventListener('blur', finishStroke);
-board.addEventListener('dragstart', event => event.preventDefault());
-board.addEventListener('click', event => {
+boards.addEventListener('dragstart', event => event.preventDefault());
+boards.addEventListener('click', event => {
   if (suppressDragClick && event.detail > 0) { suppressDragClick = false; return; }
   const cell = event.target.closest('.cell');
   if (!cell) return;
+  const clickedLevel=Number(cell.dataset.level);
+  if(clickedLevel!==activeLayer)showLayer(clickedLevel);
   const x = Number(cell.dataset.x);
   const y = Number(cell.dataset.y);
   const key = `${x},${y}`;
