@@ -235,3 +235,12 @@ main:not([data-tool="none"]) { grid-template-columns: minmax(0, 1fr) 278px; }
 #settings-dialog .actions { justify-content: flex-end; margin-top: 16px; }
 .pack-marker.passing-over { z-index: 4; outline: 2px solid #f59e0b; box-shadow: 0 4px 10px #0003; }
 .pack-marker.traveller { margin-top: calc(var(--cell-size) * -.38); font-size: calc(var(--cell-size) * .25); }
+.cell { border-right: 0; border-bottom: 0; position: relative; }
+.cell::before { content: ''; position: absolute; inset: 25%; border: 1px solid #d6dbe5; pointer-events: none; }
+.cell.selected::after { inset: 25%; }
+.board.finished .cell::before { display: none; }
+.pack-marker.lying { border-radius: 0; z-index: 2; }
+.pack-marker.lying-x { left: 25%; top: 25%; width: 150%; height: 50%; }
+.pack-marker.lying-y { left: 25%; top: 25%; width: 50%; height: 150%; }
+.pack-marker.lying.circle { border-radius: 999px; }
+.pack-marker.lying { pointer-events: none; }

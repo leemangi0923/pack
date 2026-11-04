@@ -1,3 +1,4 @@
+import { mergeLying, uniquePacks } from './lying-packs.mjs';
 import { packs } from './packs.mjs';
 import { parsePackLabel } from './pack-labels.mjs';
 
@@ -50,12 +51,17 @@ export function importMaps(text) {
       if (end !== 0) targets.push([key,end]);
     }));
   });
-  for (const [key,label] of targets) {
-    const pack = queues.get(label)?.shift();
-    if (!pack) throw new Error(`도착맵의 '${label}' 팩이 시작맵 수량보다 많습니다.`);
-    destination.set(key, pack);
+  mergeLying(placements);
+  for(const[key,number]of targets)destination.set(key,{...type,number});
+  mergeLying(destination);
+  const available=uniquePacks(placements);
+  const used=new Set();
+  for(const target of uniquePacks(destination)){
+    const match=available.find(p=>!used.has(p)&&p.number===target.number&&!!p.lying===!!target.lying);
+    if(!match)throw new Error(`시작맵과 도착맵의 '${target.number}' 팩 수량 또는 눕힘 상태가 다릅니다.`);
+    used.add(match);for(const[k,p]of destination)if(p===target)destination.set(k,match);
   }
-  if ([...queues.values()].some(queue => queue.length)) throw new Error('시작맵과 도착맵의 팩 번호별 수량이 다릅니다.');
+  if(used.size!==available.length)throw new Error('시작맵과 도착맵의 팩 번호별 수량이 다릅니다.');
   return { layers, placements, destination, activeLayer: 0, mode: 'idle', showingDestination: false,
     placementComplete: placements.size > 0, numberingComplete: placements.size > 0,
     chosenPack: type, routeText: '', numberDraft: null };

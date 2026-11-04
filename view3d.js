@@ -100,12 +100,12 @@ export function create3DView(container) {
     stackScene(referenceModel,elevations);
     stackScene(model,elevations,new Map(referenceModel.map(item=>[item.key,item.elevation])));
     if (traveller && positions.has(traveller.key)) {
-      const moving = { ...positions.get(traveller.key), pack: traveller.pack, elevation: traveller.elevation, traveller: true };
+      const moving = { ...positions.get(traveller.key), pack: traveller.pack, elevation: traveller.elevation, axis: traveller.axis, traveller: true };
       model.push(moving); positions.set(traveller.key, moving);
     }
     for (const item of model) {
       if (!item.traveller) {
-      const baseGeometry = item.level > 0 ? new THREE.PlaneGeometry(4, 4) : new THREE.BoxGeometry(4, 0.18, 4);
+      const baseGeometry = item.level > 0 ? new THREE.PlaneGeometry(2, 2) : new THREE.BoxGeometry(2, 0.18, 2);
       const base = new THREE.Mesh(baseGeometry,
         new THREE.MeshStandardMaterial({ color: 0xe2e8f0, roughness: 0.9,
           transparent: item.level > 0, opacity: item.level > 0 ? .08 : 1,
@@ -127,13 +127,15 @@ export function create3DView(container) {
       }
       if (item.pack) {
         const pack = item.pack;
-        const geometry = pack.shape === 'square'
+        const geometry = pack.lying ? (pack.shape === 'square' ? new THREE.BoxGeometry(item.axis==='x'?6:2,2,item.axis==='y'?6:2) : new THREE.CylinderGeometry(1,1,6,48)) : pack.shape === 'square'
           ? new THREE.BoxGeometry(pack.width, pack.height, pack.width)
           : new THREE.CylinderGeometry(pack.width / 2, pack.width / 2, pack.height, 48);
         const mesh = new THREE.Mesh(geometry, new THREE.MeshStandardMaterial({
           color: pack.shape === 'square' ? 0xdc2626 : 0x2563eb, roughness: 0.45,
         }));
-        mesh.position.set(item.x, item.elevation + pack.height / 2, item.z);
+        if(pack.lying&&pack.shape==='circle'){if(item.axis==='x')mesh.rotation.z=Math.PI/2;else mesh.rotation.x=Math.PI/2;}
+        mesh.userData.packHeight=pack.height;mesh.userData.axis=pack.lying?item.axis:null;
+        mesh.position.set(item.x+(pack.lying&&item.axis==='x'?2:0), item.elevation + pack.height / 2, item.z+(pack.lying&&item.axis==='y'?2:0));
         group.add(mesh);
         const inscription = new THREE.Mesh(new THREE.PlaneGeometry(1.8, 0.9),
           new THREE.MeshBasicMaterial({
@@ -142,7 +144,7 @@ export function create3DView(container) {
             polygonOffsetFactor: -1, polygonOffsetUnits: -1,
           }));
         inscription.rotation.x = -Math.PI / 2;
-        inscription.position.set(item.x, item.elevation + pack.height + 0.005, item.z);
+        inscription.position.set(mesh.position.x, item.elevation + pack.height + 0.005, mesh.position.z);
         group.add(inscription);
         movingPacks.set(item.key, { mesh, inscription });
       }
@@ -202,9 +204,9 @@ export function create3DView(container) {
       else { horizontal = 1; elevation = THREE.MathUtils.lerp(travel,toHeight,(progress-.8)/.2); }
     }
     for (const object of [moving.mesh, moving.inscription]) {
-      object.position.x = THREE.MathUtils.lerp(start.x, end.x, horizontal);
-      object.position.z = THREE.MathUtils.lerp(start.z, end.z, horizontal);
-      object.position.y = elevation + (object === moving.mesh ? moving.mesh.geometry.parameters.height / 2 : moving.mesh.geometry.parameters.height + 0.005);
+      object.position.x = THREE.MathUtils.lerp(start.x, end.x, horizontal)+(moving.mesh.userData.axis==='x'?2:0);
+      object.position.z = THREE.MathUtils.lerp(start.z, end.z, horizontal)+(moving.mesh.userData.axis==='y'?2:0);
+      object.position.y = elevation + (object === moving.mesh ? moving.mesh.userData.packHeight / 2 : moving.mesh.userData.packHeight + 0.005);
     }
     draw();
   }

@@ -1,3 +1,4 @@
+import { poseOf, footprint, uniquePacks, normalizeLayouts, changePackType } from './lying-packs.mjs';
 import { numberCells, layerOffsets } from './numbering.mjs';
 import { packs, packPreview } from './packs.mjs';
 import { nextPackKey } from './pack-order.mjs';
@@ -313,6 +314,7 @@ document.querySelector('#route-reset').addEventListener('click', () => {
 document.querySelector('#route-close').addEventListener('click', () => { closeRoutes(); render(); });
 
 function openNumberPanel(key) {
+  key=poseOf(currentMap(),key).anchor;
   const level=Number(key.split(',')[2]);if(level!==activeLayer)showLayer(level);
   editingKey = key;
   editingPack = currentMap().get(key);
@@ -338,7 +340,9 @@ function closeNumberPanel() {
 }
 
 function advanceNumberPanel() {
-  const nextKey = nextPackKey(currentMap().keys(), editingKey);
+  const map=currentMap();const anchors=[...map.keys()].filter(k=>poseOf(map,k).anchor===k);
+  editingKey=poseOf(map,editingKey).anchor;
+  const nextKey = nextPackKey(anchors, editingKey);
   if (nextKey) openNumberPanel(nextKey);
   else {
     closeNumberPanel();
@@ -376,13 +380,14 @@ function message(text) { feedback.textContent = text; }
 function currentMap() { return routeOpen && playbackMap ? playbackMap : showingDestination ? destination : placements; }
 function remaining(pack) {
   const used = new Set(destination.values());
-  return [...placements.values()].filter(item => item.id === pack.id && !used.has(item));
+  return uniquePacks(placements).filter(item => item.id === pack.id && !used.has(item));
 }
 function invalidate() {
   placementComplete = false;
   numberingComplete = false;
   const valid=new Set(allCells().filter(c=>!c.kind).map(c=>`${c.x},${c.y},${c.level}`));
   for(const[key]of placements)if(!valid.has(key))placements.delete(key);
+  for(const map of [placements,destination])for(const p of uniquePacks(map))if(p.lying&&[...map.values()].filter(v=>v===p).length!==2)for(const[k,v]of map)if(v===p)map.delete(k);
   const available = new Set(placements.values());
   for(const[key,item]of destination)if(!valid.has(key)||!available.has(item))destination.delete(key);
 }
@@ -473,9 +478,10 @@ function render() {
         special.title = kind === 'hole' ? '홀 · 통과 가능, 배치 불가' : `${kind === 'fixed-circle' ? '원형' : '사각'} 대형 고정팩 · 이동 불가`;
         cell.append(special);
       }
-      if (pack) {
+      const pose=poseOf(map,globalKey);
+      if (pack && pose.anchor===globalKey) {
         const marker = document.createElement('span');
-        marker.className = `pack-marker ${pack.shape}`;
+        marker.className = `pack-marker ${pack.shape}${pack.lying?` lying lying-${pose.axis}`:''}`;
         const label = document.createElement('span');
         label.textContent = pack.number ?? pack.size;
         label.style.setProperty('--pack-label-size', Math.min(0.34, 0.7 / String(pack.number ?? pack.size).length));
@@ -488,7 +494,7 @@ function render() {
     }
     if (transitPack?.key === globalKey && routeOpen) {
       const moving = document.createElement('span');
-      moving.className = `pack-marker traveller passing-over ${transitPack.pack.shape}`;
+      moving.className = `pack-marker traveller passing-over ${transitPack.pack.shape}${transitPack.pack.lying?` lying lying-${transitPack.axis}`:''}`;
       moving.textContent = transitPack.pack.number ?? transitPack.pack.size;
       moving.title = '다른 팩 위로 통과 중'; cell.append(moving);
     }
@@ -550,7 +556,7 @@ function render() {
       ? `남은 수량 ${remaining(packs.find(pack => pack.id === option.dataset.pack)).length}개` : '';
   }
   const names = { drawing: '파레트 그리는 중', idle: showingDestination ? '도착맵 보기' : '시작맵 보기', start: '시작맵 배치 중', numbering: '팩 번호 매기는 중', destination: '도착맵 배치 중', 'destination-numbering': '도착맵 팩 번호 매기는 중' };
-  status.textContent = `${activeLayer + 1}층 · ${names[mode]} · 파레트 ${allCells().length}칸 · 전체 팩 ${map.size}개`;
+  status.textContent = `${activeLayer + 1}층 · ${names[mode]} · 파레트 ${allCells().length}칸 · 전체 팩 ${uniquePacks(map).length}개`;
   if (replacePacks) status.textContent = `팩 종류 변경 · 모든 층에서 번호와 도착 위치 유지`;
   const instructions = {
     drawing: '클릭으로 선택·해제하고, 누른 채 드래그하면 여러 칸을 선택합니다. 빈칸도 번호에 포함됩니다.',
@@ -668,7 +674,7 @@ board.addEventListener('click', event => {
   message('');
   if (mode === 'replace') {
     const pack = currentMap().get(globalKey);
-    if (pack) { Object.assign(pack, chosenPack); render(); }
+    if (pack) { changePackType(pack, chosenPack); render(); }
     else message('종류를 바꿀 팩을 클릭해 주세요.');
     return;
   }
@@ -676,7 +682,7 @@ board.addEventListener('click', event => {
   if (['drawing', 'start', 'destination'].includes(mode) && cellKind !== 'normal') {
     const previous = selected.get(key);
     selected.set(key, previous?.kind === cellKind ? { x, y } : { x, y, kind: cellKind });
-    placements.delete(globalKey); destination.delete(globalKey);
+    const removed=placements.get(globalKey);for(const[k,p]of placements)if(p===removed)placements.delete(k);for(const[k,p]of destination)if(p===removed||k===globalKey)destination.delete(k);
     invalidate(); render(); return;
   }
   if (mode !== 'drawing' && selected.get(key)?.kind && ['start', 'destination'].includes(mode)) {
@@ -687,19 +693,22 @@ board.addEventListener('click', event => {
     else selected.set(key, { x, y });
     invalidate();
   } else if (mode === 'start' && selected.has(key)) {
-    if (placements.get(globalKey)?.id === chosenPack.id) placements.delete(globalKey);
-    else if (placements.has(globalKey)) Object.assign(placements.get(globalKey), chosenPack);
+    if (placements.get(globalKey)?.id === chosenPack.id) { const pack=placements.get(globalKey);for(const[k,p]of placements)if(p===pack)placements.delete(k); }
+    else if (placements.has(globalKey)) changePackType(placements.get(globalKey), chosenPack);
     else placements.set(globalKey, { ...chosenPack, number: null });
     invalidate();
   } else if ((mode === 'numbering' || mode === 'destination-numbering') && currentMap().has(globalKey)) {
     openNumberPanel(globalKey);
     return;
   } else if (mode === 'destination' && selected.has(key)) {
-    if (destination.get(globalKey)?.id === chosenPack.id) destination.delete(globalKey);
+    if (destination.get(globalKey)?.id === chosenPack.id) { const pack=destination.get(globalKey);for(const[k,p]of destination)if(p===pack)destination.delete(k); }
     else {
       const item = remaining(chosenPack)[0];
       if (!item) { message(`${chosenPack.name}의 남은 수량이 없습니다. 배치된 팩을 지운 뒤 다시 놓을 수 있습니다.`); return; }
-      destination.set(globalKey, item);
+      const sourceKey=[...placements].find(([,p])=>p===item)[0];
+      const keys=footprint(globalKey,item.lying?poseOf(placements,sourceKey).axis:null);
+      if(keys.some(k=>{const[x,y,l]=k.split(',');return !allLayers()[Number(l)]?.has(`${x},${y}`)||allLayers()[Number(l)].get(`${x},${y}`).kind||destination.has(k)})){message('눕힌팩을 놓을 인접한 두 칸을 비워 주세요.');return;}
+      for(const k of keys)destination.set(k,item);
     }
   } else return;
   render();
@@ -788,6 +797,7 @@ document.querySelector('#number-form').addEventListener('submit', event => {
     advanceNumberPanel(); return;
   }
   editingPack.number = number;
+  normalizeLayouts(placements,destination);
   advanceNumberPanel();
 });
 document.querySelector('#cancel-number').addEventListener('click', closeNumberPanel);

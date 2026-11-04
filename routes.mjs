@@ -1,3 +1,4 @@
+import { poseOf, footprint, uniquePacks } from './lying-packs.mjs';
 import { numberCells, layerOffsets } from './numbering.mjs';
 import { layerElevations, stackScene } from './scene-model.mjs';
 
@@ -44,31 +45,39 @@ export function prepareRoutes(text, cells, startMap, offset = 0, collisionMode =
     const final = positions.get(route.at(-1));
     if (kinds.get(final)==='hole') throw new Error(`${route.at(-1)}번 위치는 H 홀이므로 이동을 끝낼 수 없습니다.`);
     bases = getBases(result);
-    let from = positions.get(route[0]), fromHeight = base(from);
+    let from = positions.get(route[0]);
+    from=poseOf(result,from).anchor;
+    const axis=result.get(from)?.lying?poseOf(result,from).axis:null;
+    let fromHeight=Math.max(...footprint(from,axis).map(base));
     const pack = result.get(from);
     if (!pack) throw new Error(`${index+1}번째 경로의 출발 위치 ${route[0]}번에 팩이 없습니다.`);
     const height = pack.height ?? 4;
     for (let i=1;i<route.length;i++) {
       bases = getBases(result);
-      const to = positions.get(route[i]), occupant = result.get(to);
-      const fixed = ['fixed','fixed-circle'].includes(kinds.get(to));
+      const to = positions.get(route[i]),toKeys=footprint(to,axis);
+      if(toKeys.some(key=>!numbers.has(key)))throw new Error('눕힌팩의 두 칸이 모두 파레트 안에 있어야 합니다.');
+      if(i===route.length-1&&toKeys.some(key=>kinds.get(key)==='hole'))throw new Error('눕힌팩은 H 홀에 걸쳐 도착할 수 없습니다.');
+      const occupant=toKeys.map(key=>result.get(key)).find(p=>p&&p!==pack);
+      const fixed = toKeys.some(key=>['fixed','fixed-circle'].includes(kinds.get(key)));
       const occupied = fixed || (occupant && occupant!==pack);
       if (occupied && (i===route.length-1 || !climb)) throw new Error(`부딪힘이 감지되었습니다: ${route[i]}번 위치에 ${fixed?'X 고정팩':'다른 팩'}이 있습니다.${i===route.length-1?' 최종 도착 칸은 비워 주세요.':''}`);
-      const toHeight = base(to) + (occupied ? (fixed?6:occupant.height??4)+.15 : 0);
-      const a = center(from,fromHeight+height/2), b = center(to,toHeight+height/2);
+      const toHeight = Math.max(...toKeys.map(key=>base(key)+(occupied?(['fixed','fixed-circle'].includes(kinds.get(key))?6:(result.get(key)!==pack?result.get(key)?.height??0:0)):0))) + (occupied ? .15 : 0);
+      const movingCenter=(key,h)=>{const p=center(key,h);if(axis==='x')p[0]+=2;if(axis==='y')p[2]+=2;return p;};
+      const a = movingCenter(from,fromHeight+height/2), b = movingCenter(to,toHeight+height/2);
       let travelHeight = Math.max(fromHeight,toHeight), over = !!occupied;
-      const obstacles = [...result].filter(([,p]) => p!==pack).map(([key,p]) => ({key,height:p.height??4}));
+      const obstacles = uniquePacks(result).filter(p=>p!==pack).map(p=>{const key=[...result].find(([,v])=>v===p)[0],pose=poseOf(result,key);return {key:pose.anchor,height:p.height??4,axis:p.lying?pose.axis:null};});
       for (const cell of cells) if (['fixed','fixed-circle'].includes(cell.kind)) obstacles.push({key:keyOf(cell),height:6,fixed:true});
       for (const obstacle of obstacles) {
         const c = center(obstacle.key,base(obstacle.key)+obstacle.height/2);
-        if (!intersects(a,b,c,[(2+(pack.width??2))/2,(obstacle.height+height)/2,(2+(pack.width??2))/2])) continue;
+        if(obstacle.axis==='x')c[0]+=2;if(obstacle.axis==='y')c[2]+=2;
+        if (!intersects(a,b,c,[((obstacle.axis==='x'?6:2)+(axis==='x'?6:pack.width??2))/2,(obstacle.height+height)/2,((obstacle.axis==='y'?6:2)+(axis==='y'?6:pack.width??2))/2])) continue;
         if (!climb) throw new Error(`부딪힘이 감지되었습니다: ${numbers.get(obstacle.key)}번 위치의 ${obstacle.fixed?'X 고정팩':'다른 팩'}과 이동 구간이 겹칩니다.`);
         over = true; travelHeight = Math.max(travelHeight,base(obstacle.key)+obstacle.height+.15);
       }
       const landed = !occupied;
-      steps.push({from,to,pack,route:index,fromNumber:route[i-1],toNumber:route[i],fromHeight,toHeight,travelHeight,over,landed});
-      if (result.get(from)===pack) result.delete(from);
-      if (landed) result.set(to,pack);
+      steps.push({from,to,pack,route:index,fromNumber:route[i-1],toNumber:route[i],fromHeight,toHeight,travelHeight,over,landed,axis,toKeys});
+      for(const[key,p]of result)if(p===pack)result.delete(key);
+      if(landed)for(const key of toKeys)result.set(key,pack);
       from = to; fromHeight = toHeight;
     }
   }
@@ -78,9 +87,9 @@ export function prepareRoutes(text, cells, startMap, offset = 0, collisionMode =
 export function routeState(startMap, steps, count) {
   const map = new Map(startMap); let traveller = null;
   for (const step of steps.slice(0,count)) {
-    if (map.get(step.from)===step.pack) map.delete(step.from);
-    if (step.landed!==false) { map.set(step.to,step.pack); traveller=null; }
-    else traveller={key:step.to,pack:step.pack,elevation:step.toHeight};
+    for(const[key,p]of map)if(p===step.pack)map.delete(key);
+    if (step.landed!==false) { for(const key of step.toKeys??[step.to])map.set(key,step.pack); traveller=null; }
+    else traveller={key:step.to,pack:step.pack,elevation:step.toHeight,axis:step.axis};
   }
   return {map,traveller};
 }

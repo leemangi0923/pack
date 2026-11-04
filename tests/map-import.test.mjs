@@ -36,7 +36,8 @@ test('provided 6x3 two-floor lists create both complete maps and default medium 
 test('X, duplicate numbers, and special marks shared between maps',()=>{
  const state=importMaps('p=[\n1,1,X,H,\n]\ne=[\n1,1,X,H,\n]');
  assert.equal(state.layers[0].get('2,0').kind,'fixed');
- assert.notEqual(...state.placements.values());
+ assert.equal(...state.placements.values());
+ assert.ok([...state.placements.values()].every(p=>p.lying&&p.height===2&&p.length===6));
  assert.equal(state.destination.size,2);
 });
 test('invalid dimensions, unknown tokens, conflicting holes, missing packs and code are rejected',()=>{
