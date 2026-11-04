@@ -1,4 +1,5 @@
 import { poseOf, footprint, uniquePacks, normalizeLayouts, changePackType } from './lying-packs.mjs';
+import { swapFloors, swapFloorKey } from './swap-floors.mjs';
 import { numberCells, layerOffsets } from './numbering.mjs';
 import { packs, packPreview } from './packs.mjs';
 import { nextPackKey } from './pack-order.mjs';
@@ -130,6 +131,25 @@ document.querySelector('#layer-tabs').addEventListener('click',event=>{
  const button=event.target.closest('button[data-layer]');if(!button||button.disabled)return;
  const next=Number(button.dataset.layer);if(next===activeLayer)return;
  showLayer(next);editingKey=null;editingPack=null;cellKind='normal';message('');render();
+});
+document.querySelector('#swap-floors').addEventListener('click', () => {
+  finishStroke();
+  const state = swapFloors({ layers: allLayers(), placements, destination, activeLayer, routeText: routeInput.value });
+  const wasRouteOpen = routeOpen;
+  closeRoutes();
+  layerSnapshots = state.layers; activeLayer = state.activeLayer; board = floorBoards[activeLayer];
+  selected.clear(); for (const [key,cell] of state.layers[activeLayer]) selected.set(key,cell);
+  placements.clear(); for (const [key,pack] of state.placements) placements.set(key,pack);
+  destination.clear(); for (const [key,pack] of state.destination) destination.set(key,pack);
+  routeInput.value = state.routeText;
+  if (editingKey) {
+    editingKey = swapFloorKey(editingKey);
+    const [x,y,level] = editingKey.split(',').map(Number);
+    document.querySelector('#number-position').textContent = `${level+1}층 · ${y+1}행 ${x+1}열 · 저장하면 다음 팩으로 이동`;
+  }
+  if (wasRouteOpen) { routeOpen = true; playbackMap = new Map(placements); }
+  message(`1층과 2층을 바꿨습니다.${state.warning ? ` ${state.warning}` : ' 경로 번호도 새 위치에 맞췄습니다.'}`);
+  render();
 });
 function saveWorkspace() {
   clearTimeout(saveTimer);
@@ -430,6 +450,7 @@ function render() {
   for (const option of cellTools.querySelectorAll('button')) option.setAttribute('aria-pressed', String(option.dataset.kind === cellKind));
   const cellsByLayer = layerCells();
   const offsets = layerOffsets(cellsByLayer);
+  document.querySelector('#swap-floors').hidden = !allLayers()[0] || !allLayers()[1];
   for (const button of document.querySelectorAll('#layer-tabs button')) {
     const index = Number(button.dataset.layer);
     const exists = index === activeLayer || layerSnapshots[index] !== null;

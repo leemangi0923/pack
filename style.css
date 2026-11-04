@@ -252,3 +252,4 @@ main:not([data-tool="none"]) { grid-template-columns: minmax(0, 1fr) 278px; }
 .floor-pane.active-floor h3 { color: var(--accent); background: #f8f6ff; }
 .floor-canvas { display: flex; flex: 1; min-width: 0; min-height: 0; align-items: center; justify-content: center; overflow: hidden; }
 @media(max-width:600px) { .release-date { font-size: 7px; margin-left: 3px; } .boards { padding: 5px; gap: 5px; } .floor-pane h3 { padding: 6px; font-size: 10px; } }
+#swap-floors { padding: 6px 9px; border: 1px solid #d9d3f1; background: #f6f3ff; color: var(--accent); border-radius: 7px; font-size: 10px; white-space: nowrap; }
