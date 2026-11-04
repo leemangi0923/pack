@@ -43,3 +43,11 @@ test('X, duplicate numbers, and special marks shared between maps',()=>{
 test('invalid dimensions, unknown tokens, conflicting holes, missing packs and code are rejected',()=>{
  for(const text of ['p=[1,0]\ne=[1]', 'p=[1,0\n0]\ne=[1,0]', 'p=[1,H]\ne=[0,1]', 'p=[1,0]\ne=[2,0]', 'p=[evil()]\ne=[0]', 'p=[1]\np=[1]\ne=[1]'])assert.throws(()=>importMaps(text));
 });
+test('lowercase x and uppercase X are interchangeable in either map',()=>{
+ const state=importMaps('p=[\n1,x,"x",X,\n]\ne=[\n1,X,x,\'x\',\n]');
+ for(const x of [1,2,3])assert.equal(state.layers[0].get(`${x},0`).kind,'fixed');
+ assert.equal(state.placements.size,1);
+ assert.equal(state.destination.get('0,0,0'),state.placements.get('0,0,0'));
+ const restored=decodeUnified(encodeUnified(state));
+ for(const x of [1,2,3])assert.equal(restored.layers[0].get(`${x},0`).kind,'fixed');
+});

@@ -13,6 +13,7 @@ function readList(text, name) {
       if (tokens.length > 40 || !tokens.length) throw new Error(`${name} ${level + 1}층의 가로는 1~40칸이어야 합니다.`);
       return tokens.map(token => {
         token = token.replace(/^(['"])(.*)\1$/, '$2');
+        if (token === 'x') token = 'X';
         if (token === 'X' || token === 'H') return token;
         try { return parsePackLabel(token); }
         catch { throw new Error(`읽을 수 없는 값 '${token}'입니다. 숫자, X, H 또는 ○ △ □ ◇를 입력해 주세요.`); }
